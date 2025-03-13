@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "PTJPLSM"
-version = "1.0.0"
+version = "1.0.1"
 description = "Priestley-Taylor Jet Propulsion Laboratory Soil Moisutre Evapotranspiration Model"
 readme = "README.md"
 authors = [
@@ -16,8 +16,31 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "ECOv002-CMR>=1.0.5",
+    "ECOv002-granules>=1.0.3",
+    "ECOv003-granules",
+    "geos5fp>=1.0.5",
+    "h5py>=3.13.0",
     "numpy",
     "pandas",
-    "rasters"
+    "PTJPL",
+    "rasters>=1.4.6",
+    "scikit-learn"
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "pytest>=6.0",
+    "pytest-cov",
+    "jupyter",
+    "pytest",
+    "twine"
+]
+
+[tool.setuptools.package-data]
+PTJPLSM = ["*.txt", "*.tif"]
+
+[project.urls]
+"Homepage" = "https://github.com/JPL-Evapotranspiration-Algorithms/PTJPLSM"
