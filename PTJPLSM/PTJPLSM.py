@@ -19,6 +19,10 @@ from PTJPL import calculate_plant_moisture_constraint
 from PTJPL import calculate_plant_temperature_constraint
 from PTJPL import calculate_soil_net_radiation
 from PTJPL import calculate_interception
+from PTJPL import BETA_PA
+from PTJPL import PT_ALPHA
+from PTJPL import MINIMUM_TOPT
+from PTJPL import FLOOR_TOPT
 
 from .constants import *
 
@@ -28,7 +32,7 @@ from .partitioning import calculate_soil_latent_heat_flux
 from .partitioning import calculate_canopy_latent_heat_flux
 
 
-def process_PTJPLSM(
+def PTJPLSM(
             Rn: Union[Raster, np.ndarray],
             G: Union[Raster, np.ndarray],
             NDVI: Union[Raster, np.ndarray],
