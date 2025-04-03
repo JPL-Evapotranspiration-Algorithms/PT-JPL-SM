@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "PTJPLSM"
-version = "1.0.1"
+version = "1.1.0"
 description = "Priestley-Taylor Jet Propulsion Laboratory Soil Moisutre Evapotranspiration Model"
 readme = "README.md"
 authors = [
@@ -19,13 +19,15 @@ dependencies = [
     "ECOv002-CMR>=1.0.5",
     "ECOv002-granules>=1.0.3",
     "ECOv003-granules",
+    "gedi-canopy-height",
     "GEOS5FP>=1.1.1",
     "h5py>=3.13.0",
     "numpy",
     "pandas",
     "PTJPL",
     "rasters>=1.4.6",
-    "scikit-learn"
+    "scikit-learn",
+    "soil-capacity-wilting>=1.1.0"
 ]
 requires-python = ">=3.10"
 

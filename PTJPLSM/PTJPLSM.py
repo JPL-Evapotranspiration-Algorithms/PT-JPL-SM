@@ -7,6 +7,9 @@ import rasters as rt
 from rasters import Raster, RasterGeometry
 from GEOS5FP import GEOS5FP
 
+from soil_capacity_wilting import load_field_capacity, load_wilting_point
+from gedi_canopy_height import load_canopy_height
+
 from PTJPL import GAMMA_PA
 from PTJPL import BETA_PA
 from PTJPL import PT_ALPHA
@@ -63,7 +66,8 @@ def PTJPLSM(
         PT_alpha: float = PT_ALPHA,
         field_capacity_scale: float = FIELD_CAPACITY_SCALE,
         minimum_Topt: float = MINIMUM_TOPT,
-        floor_Topt: bool = FLOOR_TOPT) -> Dict[str, Union[Raster, np.ndarray]]:
+        floor_Topt: bool = FLOOR_TOPT,
+        resampling: str = RESAMPLING) -> Dict[str, Union[Raster, np.ndarray]]:
     results = {}
 
     if geometry is None and isinstance(NDVI, Raster):
@@ -107,6 +111,15 @@ def PTJPLSM(
 
     if soil_moisture is None:
         raise ValueError("soil moisture not given")
+
+    if field_capacity is None and geometry is not None:
+        field_capacity = load_field_capacity(geometry=geometry, resampling=resampling)
+    
+    if wilting_point is None and geometry is not None:
+        wilting_point = load_wilting_point(geometry=geometry, resampling=resampling)
+
+    if canopy_height_meters is None and geometry is not None:
+        canopy_height_meters = load_canopy_height(geometry=geometry, resampling=resampling)
 
     if Rn is None and albedo is not None and ST_C is not None and emissivity is not None:
         if SWin is None and geometry is not None and time_UTC is not None:
