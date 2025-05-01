@@ -2,6 +2,8 @@ import logging
 
 import numpy as np
 import rasters as rt
+from rasters import CoordinateArray, WGS84
+
 from dateutil import parser
 from pandas import DataFrame
 
@@ -31,7 +33,8 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         Ta_C = np.array(input_df.Ta).astype(np.float64)
 
     RH = np.array(input_df.RH).astype(np.float64)
-    Rn = np.array(input_df.Rn).astype(np.float64)
+    soil_moisture = np.array(input_df.SM).astype(np.float64)
+    Rn_Wm2 = np.array(input_df.Rn).astype(np.float64)
     Topt = np.array(input_df.Topt).astype(np.float64)
     fAPARmax = np.array(input_df.fAPARmax).astype(np.float64)
 
@@ -41,17 +44,23 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         G = np.array(input_df.G).astype(np.float64)
     else:
         G = calculate_SEBAL_soil_heat_flux(
-            Rn=Rn,
+            Rn=Rn_Wm2,
             ST_C=ST_C,
             NDVI=NDVI,
             albedo=albedo
         ).astype(np.float64)
+
+    lat = np.array(input_df.lat).astype(np.float64)
+    lon = np.array(input_df.lon).astype(np.float64)
+    geometry = CoordinateArray(x=lon, y=lat, crs=WGS84)
     
     results = PTJPLSM(
+        geometry=geometry,
         NDVI=NDVI,
         Ta_C=Ta_C,
         RH=RH,
-        Rn=Rn,
+        soil_moisture=soil_moisture,
+        Rn_Wm2=Rn_Wm2,
         Topt=Topt,
         fAPARmax=fAPARmax,
         G=G

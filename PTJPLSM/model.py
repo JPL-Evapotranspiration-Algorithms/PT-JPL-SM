@@ -41,7 +41,7 @@ from .partitioning import (
 
 def PTJPLSM(
         NDVI: Union[Raster, np.ndarray],
-        Rn: Union[Raster, np.ndarray],
+        Rn_Wm2: Union[Raster, np.ndarray],
         geometry: RasterGeometry = None,
         time_UTC: datetime = None,
         hour_of_day: np.ndarray = None,
@@ -121,7 +121,7 @@ def PTJPLSM(
     if canopy_height_meters is None and geometry is not None:
         canopy_height_meters = load_canopy_height(geometry=geometry, resampling=resampling)
 
-    if Rn is None and albedo is not None and ST_C is not None and emissivity is not None:
+    if Rn_Wm2 is None and albedo is not None and ST_C is not None and emissivity is not None:
         if SWin is None and geometry is not None and time_UTC is not None:
             SWin = GEOS5FP_connection.SWin(
                 time_UTC=time_UTC,
@@ -138,14 +138,14 @@ def PTJPLSM(
             RH=RH
         )
 
-        Rn = Rn_results["Rn"]
+        Rn_Wm2 = Rn_results["Rn"]
 
-    if Rn is None:
+    if Rn_Wm2 is None:
         raise ValueError("net radiation (Rn) not given")
 
-    if G is None and Rn is not None and ST_C is not None and NDVI is not None and albedo is not None:
+    if G is None and Rn_Wm2 is not None and ST_C is not None and NDVI is not None and albedo is not None:
         G = calculate_SEBAL_soil_heat_flux(
-            Rn=Rn,
+            Rn=Rn_Wm2,
             ST_C=ST_C,
             NDVI=NDVI,
             albedo=albedo
@@ -217,7 +217,7 @@ def PTJPLSM(
     # soil evaporation
 
     # calculate net radiation of the soil from leaf area index
-    Rn_soil = calculate_soil_net_radiation(Rn, LAI)
+    Rn_soil = calculate_soil_net_radiation(Rn_Wm2, LAI)
     results["Rn_soil"] = Rn_soil
 
     # calculate soil evaporation (LEs) from relative surface wetness, soil moisture constraint,
@@ -229,11 +229,11 @@ def PTJPLSM(
     # canopy transpiration
 
     # calculate net radiation of the canopy from net radiation of the soil
-    Rn_canopy = Rn - Rn_soil
+    Rn_canopy = Rn_Wm2 - Rn_soil
     results["Rn_canopy"] = Rn_canopy
     
     # calculate potential evapotranspiration (pET) from net radiation, and soil heat flux
-    PET = PT_alpha * epsilon * (Rn - G)
+    PET = PT_alpha * epsilon * (Rn_Wm2 - G)
     results["PET"] = PET
 
     fTRM = calculate_fTRM(PET, RH, canopy_height_meters, soil_moisture, field_capacity, wilting_point, fM)
