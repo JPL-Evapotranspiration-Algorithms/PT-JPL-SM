@@ -45,9 +45,6 @@ def generate_PTJPLSM_inputs(PTJPL_inputs_from_calval_df: DataFrame) -> DataFrame
         doy.append(time_UTC.timetuple().tm_yday)
         date_UTC = time_UTC.date()
         
-        # tile = sentinel_tiles.toMGRS(lat, lon)[:5]
-        # tile_grid = sentinel_tiles.grid(tile=tile, cell_size=70)
-
         try:
             tile = sentinel_tiles.toMGRS(lat, lon)[:5]
             tile_grid = sentinel_tiles.grid(tile=tile, cell_size=70)

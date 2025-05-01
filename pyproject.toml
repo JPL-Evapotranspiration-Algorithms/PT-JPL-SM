@@ -27,6 +27,7 @@ dependencies = [
     "PTJPL",
     "rasters>=1.4.6",
     "scikit-learn",
+    "SEBAL-soil-heat-flux",
     "soil-capacity-wilting>=1.1.0",
     "solar-apparent-time"
 ]
