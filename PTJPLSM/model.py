@@ -153,7 +153,9 @@ def PTJPLSM(
 
     if G is None:
         raise ValueError("soil heat flux (G) not given")
-        
+    
+    results["G"] = G
+
     # calculate meteorology
 
     # calculate saturation vapor pressure in kPa from air temperature in celsius
