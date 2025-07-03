@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 import rasters as rt
-from rasters import CoordinateArray, WGS84
+from rasters import MultiPoint, WGS84
 
 from dateutil import parser
 from pandas import DataFrame
@@ -52,7 +52,7 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
 
     lat = np.array(input_df.lat).astype(np.float64)
     lon = np.array(input_df.lon).astype(np.float64)
-    geometry = CoordinateArray(x=lon, y=lat, crs=WGS84)
+    geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
     
     results = PTJPLSM(
         geometry=geometry,
