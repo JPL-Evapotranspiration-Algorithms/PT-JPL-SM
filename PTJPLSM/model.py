@@ -7,7 +7,9 @@ import rasters as rt
 from rasters import Raster, RasterGeometry
 from GEOS5FP import GEOS5FP
 
+from soil_capacity_wilting import DEFAULT_DOWNLOAD_DIRECTORY as SOIL_CAPACITY_DIRECTORY
 from soil_capacity_wilting import load_field_capacity, load_wilting_point
+from gedi_canopy_height import GEDI_DOWNLOAD_DIRECTORY
 from gedi_canopy_height import load_canopy_height
 
 from PTJPL import GAMMA_PA
@@ -66,6 +68,9 @@ def PTJPLSM(
         PT_alpha: float = PT_ALPHA,
         field_capacity_scale: float = FIELD_CAPACITY_SCALE,
         minimum_Topt: float = MINIMUM_TOPT,
+        field_capacity_directory: str = SOIL_CAPACITY_DIRECTORY,
+        wilting_point_directory: str = SOIL_CAPACITY_DIRECTORY,
+        canopy_height_directory: str = GEDI_DOWNLOAD_DIRECTORY,
         floor_Topt: bool = FLOOR_TOPT,
         resampling: str = RESAMPLING) -> Dict[str, Union[Raster, np.ndarray]]:
     results = {}
@@ -113,13 +118,25 @@ def PTJPLSM(
         raise ValueError("soil moisture not given")
 
     if field_capacity is None and geometry is not None:
-        field_capacity = load_field_capacity(geometry=geometry, resampling=resampling)
+        field_capacity = load_field_capacity(
+            geometry=geometry,
+            directory=filed_capacity_directory,
+            resampling=resampling
+        )
     
     if wilting_point is None and geometry is not None:
-        wilting_point = load_wilting_point(geometry=geometry, resampling=resampling)
+        wilting_point = load_wilting_point(
+            geometry=geometry, 
+            directory=wilting_point_directory,
+            resampling=resampling
+        )
 
     if canopy_height_meters is None and geometry is not None:
-        canopy_height_meters = load_canopy_height(geometry=geometry, resampling=resampling)
+        canopy_height_meters = load_canopy_height(
+            geometry=geometry, 
+            directory=canopy_height_directory,
+            resampling=resampling
+        )
 
     if Rn_Wm2 is None and albedo is not None and ST_C is not None and emissivity is not None:
         if SWin is None and geometry is not None and time_UTC is not None:
