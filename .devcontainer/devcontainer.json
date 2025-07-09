@@ -9,5 +9,8 @@
         "ms-toolsai.jupyter"
       ]
     }
+  },
+  "codespaces": {
+    "defaultMachine": "basicLinux"
   }
 }
