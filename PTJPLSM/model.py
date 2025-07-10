@@ -200,7 +200,7 @@ def PTJPLSM(
     if canopy_height_meters is None and geometry is not None:
         canopy_height_meters = load_canopy_height(
             geometry=geometry, 
-            directory=canopy_height_directory,
+            source_directory=canopy_height_directory,
             resampling=resampling
         )
 
