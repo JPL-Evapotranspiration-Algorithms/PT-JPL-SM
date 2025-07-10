@@ -25,11 +25,11 @@ dependencies = [
     "numpy",
     "pandas",
     "PTJPL",
-    "rasters>=1.4.6",
+    "rasters>=1.7.0",
     "scikit-learn",
     "seaborn",
     "SEBAL-soil-heat-flux",
-    "soil-capacity-wilting>=1.1.0",
+    "soil-capacity-wilting>=1.2.0",
     "solar-apparent-time",
     "verma-net-radiation>=1.1.0"
 ]
