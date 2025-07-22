@@ -31,6 +31,7 @@ import rasters as rt
 from rasters import Raster, RasterGeometry
 from GEOS5FP import GEOS5FP
 
+from check_distribution import check_distribution
 from soil_capacity_wilting import DEFAULT_DOWNLOAD_DIRECTORY as SOIL_CAPACITY_DIRECTORY
 from soil_capacity_wilting import load_field_capacity, load_wilting_point
 from gedi_canopy_height import GEDI_DOWNLOAD_DIRECTORY
@@ -145,8 +146,13 @@ def PTJPLSM(
     # Load Topt and fAPARmax if not provided
     if Topt is None and geometry is not None:
         Topt = load_Topt(geometry)
+
+    # check_distribution(Topt, "Topt")
+
     if fAPARmax is None and geometry is not None:
         fAPARmax = load_fAPARmax(geometry)
+
+    check_distribution(fAPARmax, "fAPARmax")
 
     # Create GEOS5FP connection if not provided
     if GEOS5FP_connection is None:
@@ -162,6 +168,8 @@ def PTJPLSM(
     if Ta_C is None:
         raise ValueError("air temperature (Ta_C) not given")
 
+    check_distribution(Ta_C, "Ta_C")
+
     # Load relative humidity if not provided
     if RH is None and geometry is not None and time_UTC is not None:
         RH = GEOS5FP_connection.RH(
@@ -171,6 +179,8 @@ def PTJPLSM(
         )
     if RH is None:
         raise ValueError("relative humidity (RH) not given")
+
+    check_distribution(RH, "RH")
 
     # Load soil moisture if not provided
     if soil_moisture is None and geometry is not None and time_UTC is not None:
@@ -182,6 +192,8 @@ def PTJPLSM(
     if soil_moisture is None:
         raise ValueError("soil moisture not given")
 
+    check_distribution(soil_moisture, "soil_moisture")
+
     # Load field capacity if not provided
     if field_capacity is None and geometry is not None:
         field_capacity = load_field_capacity(
@@ -189,6 +201,9 @@ def PTJPLSM(
             directory=field_capacity_directory,
             resampling=resampling
         )
+
+    check_distribution(field_capacity, "field_capacity")
+
     # Load wilting point if not provided
     if wilting_point is None and geometry is not None:
         wilting_point = load_wilting_point(
@@ -196,6 +211,9 @@ def PTJPLSM(
             directory=wilting_point_directory,
             resampling=resampling
         )
+
+    check_distribution(wilting_point, "wilting_point")
+
     # Load canopy height if not provided
     if canopy_height_meters is None and geometry is not None:
         canopy_height_meters = load_canopy_height(
@@ -203,6 +221,8 @@ def PTJPLSM(
             source_directory=canopy_height_directory,
             resampling=resampling
         )
+
+    check_distribution(canopy_height_meters, "canopy_height_meters")
 
     # If net radiation is not provided, compute from components
     if Rn_Wm2 is None and albedo is not None and ST_C is not None and emissivity is not None:
@@ -224,6 +244,8 @@ def PTJPLSM(
     if Rn_Wm2 is None:
         raise ValueError("net radiation (Rn) not given")
 
+    check_distribution(Rn_Wm2, "Rn_Wm2")
+
     # Compute soil heat flux if not provided
     if G is None and Rn_Wm2 is not None and ST_C is not None and NDVI is not None and albedo is not None:
         G = calculate_SEBAL_soil_heat_flux(
@@ -234,6 +256,8 @@ def PTJPLSM(
         )
     if G is None:
         raise ValueError("soil heat flux (G) not given")
+    
+    check_distribution(G, "G")
     results["G"] = G
 
     # --- Meteorological Calculations ---
@@ -247,6 +271,8 @@ def PTJPLSM(
     VPD_Pa = rt.clip(SVP_Pa - Ea_Pa, 0, None)
     # Calculate relative surface wetness
     fwet = calculate_relative_surface_wetness(RH)
+
+    check_distribution(fwet, "fwet")
 
     # --- Vegetation Calculations ---
     # Convert NDVI to SAVI
@@ -264,10 +290,18 @@ def PTJPLSM(
     # Calculate soil moisture constraint (fREW)
     fREW = calculate_fREW(soil_moisture, field_capacity, wilting_point, field_capacity_scale)
 
+    check_distribution(fREW, "fREW")
+
+    check_distribution(Topt, "Topt")
+
     # Floor Topt to Ta_C if requested, then clip to minimum_Topt
     if floor_Topt:
         Topt = rt.where(Ta_C > Topt, Ta_C, Topt)
+
     Topt = rt.clip(Topt, minimum_Topt, None)
+
+    check_distribution(Topt, "Topt")
+
     # Calculate plant temperature constraint (fT)
     fT = calculate_plant_temperature_constraint(Ta_C, Topt)
     # Calculate LAI from NDVI
@@ -280,30 +314,40 @@ def PTJPLSM(
             delta_Pa = delta_Pa_from_Ta_C(Ta_C)
         epsilon = delta_Pa / (delta_Pa + gamma_Pa)
 
+    check_distribution(epsilon, "epsilon")
+
     # --- Soil Evaporation ---
     # Net radiation of the soil
     Rn_soil = calculate_soil_net_radiation(Rn_Wm2, LAI)
+    check_distribution(Rn_soil, "Rn_soil")
     results["Rn_soil"] = Rn_soil
+
     # Soil evaporation (LEs)
     LE_soil = calculate_soil_latent_heat_flux(Rn_soil, G, epsilon, fwet, fREW, PT_alpha)
+    check_distribution(LE_soil, "LE_soil")
     results["LE_soil"] = LE_soil
 
     # --- Canopy Transpiration ---
     # Net radiation of the canopy
     Rn_canopy = Rn_Wm2 - Rn_soil
+    check_distribution(Rn_canopy, "Rn_canopy")
     results["Rn_canopy"] = Rn_canopy
     # Potential evapotranspiration (PET)
     PET = PT_alpha * epsilon * (Rn_Wm2 - G)
+    check_distribution(PET, "PET")
     results["PET"] = PET
     # Canopy moisture constraint (fTRM)
     fTRM = calculate_fTRM(PET, RH, canopy_height_meters, soil_moisture, field_capacity, wilting_point, fM)
+    check_distribution(fTRM, "fTRM")
     # Canopy transpiration (LEc)
     LE_canopy = calculate_canopy_latent_heat_flux(Rn_canopy, epsilon, fwet, fg, fT, fTRM, PT_alpha)
+    check_distribution(LE_canopy, "LE_canopy")
     results["LE_canopy"] = LE_canopy
 
     # --- Interception Evaporation ---
     # Interception evaporation (LEi)
     LE_interception = calculate_interception(Rn_canopy, epsilon, fwet, PT_alpha)
+    check_distribution(LE_interception, "LE_interception")
     results["LE_interception"] = LE_interception
 
     # --- Combined Evapotranspiration ---
@@ -311,6 +355,7 @@ def PTJPLSM(
     LE = LE_soil + LE_canopy + LE_interception
     # Constrain LE between 0 and PET
     LE = np.clip(LE, 0, PET)
+    check_distribution(LE, "LE")
     results["LE"] = LE
 
     return results
