@@ -33,6 +33,7 @@ def calculate_fREW(
     # calculate difference of field capacity and wilting point
     FCWP = rt.clip(field_capacity * field_capacity_scale - wilting_point, 0, 1)
     # calculate fraction of relative extractable water (fREW)
-    fREW = rt.clip(rt.where(FCWP == 0, 0, SMWP / FCWP), 0, 1)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        fREW = rt.clip(rt.where(FCWP == 0, 0, SMWP / FCWP), 0, 1)
 
     return fREW

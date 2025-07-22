@@ -25,9 +25,10 @@ def calculate_fTRM(
     a = 0.1
     p = (1 / (1 + PET)) - (a / (1 + canopy_height_meters))
     CHscalar = np.sqrt(canopy_height_meters)
-    WPCH = rt.clip(rt.where(CHscalar == 0, 0, wilting_point / CHscalar), 0, 1)
-    CR = (1 - p) * (field_capacity - WPCH) + WPCH
-    fTREW = rt.clip(1 - ((CR - soil_moisture) / (CR - WPCH)) ** CHscalar, 0, 1)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        WPCH = rt.clip(rt.where(CHscalar == 0, 0, wilting_point / CHscalar), 0, 1)
+        CR = (1 - p) * (field_capacity - WPCH) + WPCH
+        fTREW = rt.clip(1 - ((CR - soil_moisture) / (CR - WPCH)) ** CHscalar, 0, 1)
     RHSM = RH ** (4 * (1 - soil_moisture) * (1 - RH))
     fTRM = (1 - RHSM) * fM + RHSM * rt.where(np.isnan(fTREW), 0, fTREW)
 
