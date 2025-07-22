@@ -57,7 +57,7 @@ from PTJPL import calculate_soil_net_radiation
 from PTJPL import calculate_interception
 from PTJPL import load_Topt
 from PTJPL import load_fAPARmax
-from PTJPL import process_verma_net_radiation
+from PTJPL import verma_net_radiation
 from PTJPL import calculate_SEBAL_soil_heat_flux
 
 from .constants import *
@@ -232,7 +232,7 @@ def PTJPLSM(
                 geometry=geometry,
                 resampling=resampling
             )
-        Rn_results = process_verma_net_radiation(
+        Rn_results = verma_net_radiation(
             SWin=SWin,
             albedo=albedo,
             ST_C=ST_C,
