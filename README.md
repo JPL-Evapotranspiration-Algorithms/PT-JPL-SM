@@ -57,6 +57,132 @@ make install
 
 ## Usage
 
+### Processing Rasters (Gridded/Array Data)
+
+You can process gridded (raster) or array-based environmental datasets using the PT-JPL-SM model. This workflow is suitable for remote sensing data such as ECOSTRESS or similar sources, and allows for partitioning evapotranspiration (ET) into its components.
+
+#### Function Signature
+
+```python
+from PTJPLSM import PTJPLSM
+
+results = PTJPLSM(
+     NDVI,
+     Rn_Wm2,
+     geometry=None,
+     time_UTC=None,
+     hour_of_day=None,
+     day_of_year=None,
+     GEOS5FP_connection=None,
+     ST_C=None,
+     emissivity=None,
+     albedo=None,
+     G=None,
+     Ta_C=None,
+     RH=None,
+     soil_moisture=None,
+     field_capacity=None,
+     wilting_point=None,
+     Topt=None,
+     fAPARmax=None,
+     canopy_height_meters=None,
+     delta_Pa=None,
+     gamma_Pa=GAMMA_PA,
+     epsilon=None,
+     beta_Pa=BETA_PA,
+     PT_alpha=PT_ALPHA,
+     field_capacity_scale=FIELD_CAPACITY_SCALE,
+     minimum_Topt=MINIMUM_TOPT,
+     field_capacity_directory=SOIL_CAPACITY_DIRECTORY,
+     wilting_point_directory=SOIL_CAPACITY_DIRECTORY,
+     canopy_height_directory=GEDI_DOWNLOAD_DIRECTORY,
+     floor_Topt=FLOOR_TOPT,
+     resampling=RESAMPLING
+)
+```
+
+#### Required and Optional Inputs
+
+- **Required:**
+  - `NDVI`: Normalized Difference Vegetation Index (Raster or np.ndarray)
+  - `Rn_Wm2`: Net radiation (W/m²) (Raster or np.ndarray)
+
+- **Optional:**
+  - `geometry`: Geospatial metadata for rasters
+  - `time_UTC`: Observation time
+  - `hour_of_day`, `day_of_year`: Time information
+  - `ST_C`: Surface temperature (°C)
+  - `albedo`: Surface albedo
+  - `G`: Soil heat flux
+  - `Ta_C`: Air temperature (°C)
+  - `RH`: Relative humidity (0-1)
+  - `soil_moisture`: Soil moisture
+  - `field_capacity`, `wilting_point`: Soil properties
+  - `Topt`: Optimal plant temperature
+  - `fAPARmax`: Maximum fAPAR
+  - `canopy_height_meters`: Canopy height
+
+If some inputs (e.g., `Ta_C`, `RH`, `soil_moisture`, `field_capacity`, `wilting_point`, `canopy_height_meters`, `Topt`, `fAPARmax`) are not provided, the function will attempt to load or compute them using the provided `geometry` and `time_UTC`.
+
+All input rasters/arrays should be spatially aligned and have the same shape.
+
+#### Example Workflow
+
+Suppose you have loaded ECOSTRESS or similar remote sensing data as rasters or arrays:
+
+```python
+from PTJPLSM import PTJPLSM
+
+# Example: Load your input data (replace with your actual data loading code)
+geometry = ...      # RasterGeometry object
+time_UTC = ...      # datetime object
+NDVI = ...          # NDVI raster or array
+Ta_C = ...          # Air temperature raster or array
+RH = ...            # Relative humidity raster or array
+Rn = ...            # Net radiation raster or array
+ST_C = ...          # Surface temperature raster or array
+albedo = ...        # Albedo raster or array
+
+# Run the PTJPLSM model
+results = PTJPLSM(
+     geometry=geometry,
+     time_UTC=time_UTC,
+     NDVI=NDVI,
+     Ta_C=Ta_C,
+     RH=RH,
+     Rn_Wm2=Rn,
+     ST_C=ST_C,
+     albedo=albedo
+)
+
+# Access the total latent heat flux (evapotranspiration)
+LE = results["LE"]
+
+# Optionally, set a colormap and export to GeoTIFF
+from ECOv002_granules import ET_COLORMAP
+LE.cmap = ET_COLORMAP
+LE.to_geotiff("example_LE.tif")
+```
+
+#### Output Keys
+
+The returned dictionary contains the following keys (each value is a Raster or np.ndarray):
+
+- `G`: Soil heat flux
+- `Rn_soil`: Net radiation of the soil
+- `LE_soil`: Soil evaporation
+- `Rn_canopy`: Net radiation of the canopy
+- `PET`: Potential evapotranspiration
+- `LE_canopy`: Canopy transpiration
+- `LE_interception`: Interception evaporation
+- `LE`: Total instantaneous evapotranspiration (constrained between 0 and PET)
+
+#### Notes
+- The function is robust to missing optional parameters, but key variables (e.g., `NDVI`, `Rn_Wm2`, `Ta_C`, `RH`, `soil_moisture`) must be provided or derivable.
+- All input rasters/arrays should be spatially aligned and have the same shape.
+
+---
+
 ### Processing Tables (Batch/Site-Level Data)
 
 You can process tabular data (e.g., site-level or point measurements, or extracted pixel values) using the PT-JPL-SM model. This workflow is suitable for batch processing, sensitivity analysis, and is compatible with ECOSTRESS Cal-Val or similar datasets.
@@ -103,7 +229,7 @@ import pandas as pd
 from PTJPLSM.process_PTJPLSM_table import process_PTJPLSM_table
 
 # Load your data
-
+df = pd.read_csv('my_input_data.csv')
 
 # (Optional) Compute net radiation if not present
 # from verma_net_radiation import verma_net_radiation_table
