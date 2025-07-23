@@ -30,11 +30,67 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
     Processes an input DataFrame to prepare all required variables for the PT-JPL-SM model,
     runs the model, and returns a DataFrame with the model outputs appended as new columns.
 
-    Args:
-        input_df (DataFrame): Input data containing all necessary columns for PT-JPL-SM.
+    This function is designed to work with tabular (pandas DataFrame) data, such as point or site-level measurements or extracted pixel values from gridded products. It is compatible with DataFrames produced by ECOSTRESS Cal-Val or similar sources, and is suitable for both single-site and batch sensitivity analysis workflows (e.g., as used in the PTJPLSM Sensitivity notebook).
+
+    The function is commonly used as a forward process in sensitivity or perturbation analysis, and can be chained with net radiation calculations (e.g., using `verma_net_radiation_table`) prior to running the PT-JPL-SM model.
+
+    Expected Input DataFrame Columns:
+        - 'NDVI': Normalized Difference Vegetation Index (required)
+        - 'ST_C': Surface temperature in Celsius (required)
+        - 'albedo': Surface albedo (required)
+        - 'Ta_C' or 'Ta': Air temperature in Celsius (required)
+        - 'RH': Relative humidity (0-1, required)
+        - 'SM': Soil moisture (required)
+        - 'Rn': Net radiation (W/m^2, required; can be computed with verma_net_radiation_table)
+        - 'Topt': Optimal plant temperature (optional, will be loaded if missing)
+        - 'fAPARmax': Maximum fAPAR (optional, will be loaded if missing)
+        - 'canopy_height_meters': Canopy height (optional, will be loaded if missing)
+        - 'field_capacity': Soil field capacity (optional, will be loaded if missing)
+        - 'wilting_point': Soil wilting point (optional, will be loaded if missing)
+        - 'G': Soil heat flux (optional, will be calculated if missing)
+        - 'geometry': Geometry object (optional, will be constructed from 'lat' and 'lon' if missing)
+        - 'lat', 'lon': Latitude and longitude (optional, used to construct geometry if needed)
+
+    The function will attempt to load or compute any missing optional variables using spatial context if possible.
 
     Returns:
-        DataFrame: The input DataFrame with PT-JPL-SM model outputs added as columns.
+        DataFrame: The input DataFrame with PT-JPL-SM model outputs added as columns. Output columns include:
+            - 'G': Soil heat flux
+            - 'Rn_soil': Net radiation of the soil
+            - 'LE_soil': Soil evaporation
+            - 'Rn_canopy': Net radiation of the canopy
+            - 'PET': Potential evapotranspiration
+            - 'LE_canopy': Canopy transpiration
+            - 'LE_interception': Interception evaporation
+            - 'LE': Total instantaneous evapotranspiration (constrained between 0 and PET)
+
+    Example:
+        Suppose you have a CSV file with columns: NDVI, ST_C, albedo, Ta_C, RH, SM, Rn, lat, lon
+
+        ```python
+        import pandas as pd
+        from PTJPLSM.process_PTJPLSM_table import process_PTJPLSM_table
+
+        # Load your data
+        df = pd.read_csv('my_input_data.csv')
+
+        # (Optional) Compute net radiation if not present
+        # from verma_net_radiation import verma_net_radiation_table
+        # df = verma_net_radiation_table(df)
+
+        # Process the table and run the PT-JPL-SM model
+        output_df = process_PTJPLSM_table(df)
+
+        # The output DataFrame will have new columns: 'G', 'Rn_soil', 'LE_soil', 'Rn_canopy', 'PET',
+        # 'LE_canopy', 'LE_interception', 'LE' in addition to the original columns.
+        print(output_df.head())
+        ```
+
+    Notes:
+        - If any required columns are missing, a KeyError will be raised.
+        - If geometry is not provided, latitude and longitude columns are required to construct spatial context.
+        - All input columns should be numeric and of compatible shape.
+        - This function is suitable for batch-processing site-level or point data tables for ET partitioning and for use in sensitivity analysis workflows.
     """
     # Extract and typecast surface temperature (ST_C) and NDVI
     ST_C = np.array(input_df.ST_C).astype(np.float64)

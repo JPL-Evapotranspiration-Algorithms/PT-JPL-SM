@@ -136,6 +136,37 @@ def PTJPLSM(
 
     Returns:
         Dictionary with keys: 'G', 'Rn_soil', 'LE_soil', 'Rn_canopy', 'PET', 'LE_canopy', 'LE_interception', 'LE'
+
+    Example:
+        The following example demonstrates how to use PTJPLSM with ECOSTRESS data:
+
+        ```python
+        from PTJPLSM import PTJPLSM
+        # Assume you have already loaded the following variables from ECOSTRESS granules:
+        # geometry, time_UTC, NDVI, Ta_C, RH, Rn, ST_C, albedo
+
+        results = PTJPLSM(
+            geometry=geometry,
+            time_UTC=time_UTC,
+            NDVI=NDVI,
+            Ta_C=Ta_C,
+            RH=RH,
+            Rn_Wm2=Rn,
+            ST_C=ST_C,
+            albedo=albedo
+        )
+
+        # Access the total latent heat flux (evapotranspiration)
+        LE = results["LE"]
+
+        # Optionally, set a colormap and export to GeoTIFF
+        from ECOv002_granules import ET_COLORMAP
+        LE.cmap = ET_COLORMAP
+        LE.to_geotiff("example_LE.tif")
+        ```
+
+    References:
+        - Purdy et al. (2018), "PT-JPL-SM: A PT-JPL model variant incorporating soil moisture stress for improved global evapotranspiration partitioning."
     """
     results = {}
 
