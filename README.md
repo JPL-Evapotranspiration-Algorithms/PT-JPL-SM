@@ -272,7 +272,9 @@ make test
 
 ## Sensitivity
 
+The PT-JPL-SM and [PT-JPL](https://github.com/JPL-Evapotranspiration-Algorithms/PT-JPL) models, when processing on top of pre-computed net radiation, do not take surface temperature directly into account on their own. When coupled with a net radiation model that is sensitive to surface temperature, such as [verma-net-radiation](https://github.com/JPL-Evapotranspiration-Algorithms/verma-net-radiation), PT-JPL-SM exhibits moderate sensitivity to surface temperature, with an average percent change in latent heat flux of 20%.
 
+# ![PT-JPL-SM Latent Heat Flux Sensitivity Magnitude](notebooks/PT-JPL-SM%20Latent%20Heat%20Flux%20Sensitivity%20Magnitude.jpeg)
 
 ## License
 
