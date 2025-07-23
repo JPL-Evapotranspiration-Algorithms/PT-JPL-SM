@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "PTJPLSM"
-version = "1.5.0"
+version = "1.5.1"
 description = "Priestley-Taylor Jet Propulsion Laboratory Soil Moisutre Evapotranspiration Model"
 readme = "README.md"
 authors = [
@@ -49,6 +49,9 @@ dev = [
 
 [tool.setuptools.package-data]
 PTJPLSM = ["*.txt", "*.tif"]
+
+[tool.setuptools.packages.find]
+where = ["PTJPLSM"]
 
 [project.urls]
 "Homepage" = "https://github.com/JPL-Evapotranspiration-Algorithms/PTJPLSM"
