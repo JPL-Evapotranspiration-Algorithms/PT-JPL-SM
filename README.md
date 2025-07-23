@@ -22,6 +22,11 @@ Joshua B. Fisher (he/him)<br>
 [jbfisher@chapman.edu](mailto:jbfisher@chapman.edu)<br>
 Algorithm inventor<br>
 Chapman University
+
+Margaret C. Johnson (she/her)<br>
+[maggie.johnson@jpl.nasa.gov](mailto:maggie.johnson@jpl.nasa.gov)<br>
+Sensitivity analysis<br>
+NASA Jet Propulsion Laboratory 398L
  
 Claire Villanueva-Weeks (she/her)<br>
 [claire.s.villanueva-weeks@jpl.nasa.gov](mailto:claire.s.villanueva-weeks@jpl.nasa.gov)<br>
