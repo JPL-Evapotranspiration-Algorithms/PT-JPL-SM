@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "PTJPLSM"
-version = "1.5.1"
+version = "1.5.2"
 description = "Priestley-Taylor Jet Propulsion Laboratory Soil Moisutre Evapotranspiration Model"
 readme = "README.md"
 authors = [
