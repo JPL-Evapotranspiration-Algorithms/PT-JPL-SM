@@ -261,6 +261,7 @@ print(output_df.head())
 - If geometry is not provided, latitude and longitude columns are required to construct spatial context.
 - All input columns should be numeric and of compatible shape.
 - This function is suitable for batch-processing site-level or point data tables for ET partitioning and for use in sensitivity analysis workflows (see the PTJPLSM Sensitivity notebook for an example).
+
 ## Testing
 
 Run the unit tests using pytest:
@@ -268,6 +269,10 @@ Run the unit tests using pytest:
 ```
 make test
 ```
+
+## Sensitivity
+
+
 
 ## License
 
