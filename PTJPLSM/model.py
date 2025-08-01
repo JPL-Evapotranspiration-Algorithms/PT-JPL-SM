@@ -60,6 +60,8 @@ from PTJPL import load_fAPARmax
 from PTJPL import verma_net_radiation
 from PTJPL import calculate_SEBAL_soil_heat_flux
 
+from daily_evapotranspiration_upscaling import daily_ET_from_instantaneous
+
 from .constants import *
 from .partitioning import (
     calculate_fREW, calculate_fTRM,
@@ -388,5 +390,18 @@ def PTJPLSM(
     LE = np.clip(LE, 0, PET)
     check_distribution(LE, "LE")
     results["LE"] = LE
+
+    ET = daily_ET_from_instantaneous(
+        LE_instantaneous_Wm2=LE,
+        Rn_instantaneous_Wm2=Rn_Wm2,
+        G_instantaneous_Wm2=G,
+        geometry=geometry,
+        hour_of_day=hour_of_day,
+        DOY=day_of_year,
+        datetime_UTC=time_UTC,
+    )
+
+    check_distribution(ET, "ET")
+    results["ET"] = ET
 
     return results
