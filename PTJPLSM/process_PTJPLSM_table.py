@@ -20,6 +20,8 @@ from PTJPL import load_fAPARmax
 
 from .model import PTJPLSM
 
+from solar_apparent_time import UTC_to_solar
+
 logger = logging.getLogger(__name__)
 
 # FIXME include additional inputs required by PT-JPL-SM that were not required by PT-JPL
@@ -92,6 +94,7 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         - All input columns should be numeric and of compatible shape.
         - This function is suitable for batch-processing site-level or point data tables for ET partitioning and for use in sensitivity analysis workflows.
     """
+
     # Extract and typecast surface temperature (ST_C) and NDVI
     ST_C = np.array(input_df.ST_C).astype(np.float64)
     NDVI = np.array(input_df.NDVI).astype(np.float64)
@@ -101,7 +104,7 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
 
     # Extract and typecast albedo
     albedo = np.array(input_df.albedo).astype(np.float64)
-    
+
     # Handle air temperature column name differences (Ta_C or Ta)
     if "Ta_C" in input_df:
         Ta_C = np.array(input_df.Ta_C).astype(np.float64)
@@ -120,7 +123,7 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         Topt = np.array(input_df.Topt).astype(np.float64)
     else:
         Topt = None
-    
+
     if "fAPARmax" in input_df:
         # If fAPARmax is provided, use it directly
         fAPARmax = np.array(input_df.fAPARmax).astype(np.float64)
@@ -156,12 +159,87 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
             albedo=albedo
         ).astype(np.float64)
 
+    # --- Solar Apparent Time and Day of Year ---
+    # Extract UTC time and longitude for each row
+    if "time_UTC" not in input_df:
+        raise KeyError("Input DataFrame must contain a 'time_UTC' column.")
+    time_utc = input_df["time_UTC"]
+    # Parse to datetime if not already
+    if not np.issubdtype(time_utc.dtype, np.datetime64):
+        time_utc = time_utc.apply(lambda t: parser.parse(str(t)))
+
+    # Get longitude for each row
+    if "lon" in input_df:
+        lon = np.array(input_df["lon"]).astype(np.float64)
+    elif "geometry" in input_df:
+        # Try to extract lon from geometry if possible
+        geom = input_df.geometry
+        def safe_get_lon(g):
+            if g is None or (isinstance(g, float) and np.isnan(g)):
+                return np.nan
+            if hasattr(g, 'x'):
+                x = g.x
+                # If x is a sequence with length > 0, return first element
+                if hasattr(x, '__len__') and not isinstance(x, str):
+                    if len(x) > 0:
+                        return x[0]
+                # If x is a scalar (float/int), return it directly
+                elif isinstance(x, (float, int, np.floating, np.integer)):
+                    return x
+            # Log unexpected geometry for debugging
+            logger.warning(f"Unexpected geometry object: {type(g)} value: {g}")
+            return np.nan
+        lon = np.array([safe_get_lon(g) for g in geom])
+    else:
+        raise KeyError("Input DataFrame must contain either 'lon' or 'geometry' column for solar time conversion.")
+
+    # Compute solar apparent time for each row, handle NaN longitude
+    sat = []
+    for dt, l in zip(time_utc, lon):
+        if np.isnan(l):
+            sat.append(np.datetime64('NaT'))
+        else:
+            sat.append(UTC_to_solar(dt, l))
+    # Extract day of year from solar apparent time, set to NaN if time is NaT
+    day_of_year = np.array([
+        dt.timetuple().tm_yday if not (isinstance(dt, np.datetime64) and np.isnat(dt)) else np.nan
+        for dt in sat
+    ], dtype=float)
+
     if "geometry" in input_df:
-        # If geometry is provided, use it directly
-        geometry = input_df.geometry
+        # assuming each row of the `geometry` column contains a WKT Point, generate an array of latitudes from each point and an array of longitudes from each point
+        lat = np.array([point.y if point is not None else np.nan for point in input_df.geometry]).astype(np.float64)
+        lon = np.array([point.x if point is not None else np.nan for point in input_df.geometry]).astype(np.float64)
+        geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
+
+        # # If geometry is provided, always convert to MultiPoint for model compatibility
+        # geom = input_df.geometry
+        # # If geometry is a pandas Series of WKT strings, parse to lon/lat arrays
+        # if isinstance(geom.iloc[0], MultiPoint):
+        #     # If already MultiPoint, use as is
+        #     geometry = geom.iloc[0]
+        # else:
+        #     # Parse WKT strings like 'POINT (lon lat)' to lon/lat arrays
+        #     lon_list = []
+        #     lat_list = []
+        #     for g in geom:
+        #         if isinstance(g, str) and g.startswith("POINT"):
+        #             coords = g.replace("POINT","").replace("(","").replace(")","").strip().split()
+        #             if len(coords) == 2:
+        #                 lon, lat = float(coords[0]), float(coords[1])
+        #                 lon_list.append(lon)
+        #                 lat_list.append(lat)
+        #             else:
+        #                 lon_list.append(np.nan)
+        #                 lat_list.append(np.nan)
+        #         else:
+        #             lon_list.append(np.nan)
+        #             lat_list.append(np.nan)
+        #     lat = np.array(lat_list).astype(np.float64)
+        #     lon = np.array(lon_list).astype(np.float64)
+        #     geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
     elif "lat" in input_df and "lon" in input_df:
         # If latitude and longitude are provided, create a MultiPoint geometry
-        # Extract latitude and longitude, and create a geometry object for spatial context
         lat = np.array(input_df.lat).astype(np.float64)
         lon = np.array(input_df.lon).astype(np.float64)
         geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
@@ -208,7 +286,8 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         field_capacity=field_capacity,
         wilting_point=wilting_point,
         albedo=albedo,
-        G=G
+        G=G,
+        day_of_year=day_of_year
     )
 
     # Copy the input DataFrame to avoid modifying the original

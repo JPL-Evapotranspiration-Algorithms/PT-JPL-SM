@@ -397,8 +397,8 @@ def PTJPLSM(
         G_instantaneous_Wm2=G,
         geometry=geometry,
         hour_of_day=hour_of_day,
-        DOY=day_of_year,
-        datetime_UTC=time_UTC,
+        day_of_year=day_of_year,
+        time_UTC=time_UTC,
     )
 
     check_distribution(ET, "ET")

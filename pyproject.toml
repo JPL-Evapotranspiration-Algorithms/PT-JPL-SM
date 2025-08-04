@@ -17,7 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "check-distribution",
-    "daily-evapotranspiration-upscaling",
+    "daily-evapotranspiration-upscaling>=1.1.0",
     "ECOv002-calval-tables",
     "ECOv002-CMR>=1.0.5",
     "ECOv002-granules>=1.0.3",
