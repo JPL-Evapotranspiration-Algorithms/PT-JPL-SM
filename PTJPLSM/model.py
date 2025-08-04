@@ -37,6 +37,8 @@ from soil_capacity_wilting import load_field_capacity, load_wilting_point
 from gedi_canopy_height import GEDI_DOWNLOAD_DIRECTORY
 from gedi_canopy_height import load_canopy_height
 
+from carlson_leaf_area_index import carlson_leaf_area_index
+
 from PTJPL import GAMMA_PA
 from PTJPL import BETA_PA
 from PTJPL import PT_ALPHA
@@ -45,7 +47,6 @@ from PTJPL import FLOOR_TOPT
 
 from PTJPL import SVP_Pa_from_Ta_C
 from PTJPL import delta_Pa_from_Ta_C
-from PTJPL import LAI_from_NDVI
 from PTJPL import SAVI_from_NDVI
 from PTJPL import fAPAR_from_SAVI
 from PTJPL import fIPAR_from_NDVI
@@ -336,7 +337,7 @@ def PTJPLSM(
     # Calculate plant temperature constraint (fT)
     fT = calculate_plant_temperature_constraint(Ta_C, Topt)
     # Calculate LAI from NDVI
-    LAI = LAI_from_NDVI(NDVI)
+    LAI = carlson_leaf_area_index(NDVI)
 
     # --- Partitioning Calculations ---
     # Calculate epsilon if not provided

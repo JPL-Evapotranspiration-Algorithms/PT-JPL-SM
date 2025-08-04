@@ -16,6 +16,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "carlson-leaf-area-index",
     "check-distribution",
     "ECOv002-calval-tables",
     "ECOv002-CMR>=1.0.5",
