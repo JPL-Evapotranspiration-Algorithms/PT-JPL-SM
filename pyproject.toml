@@ -28,7 +28,7 @@ dependencies = [
     "monte-carlo-sensitivity",
     "numpy",
     "pandas",
-    "PTJPL>=1.4.3",
+    "PTJPL>=1.5.1",
     "rasters>=1.7.0",
     "scikit-learn",
     "seaborn",
