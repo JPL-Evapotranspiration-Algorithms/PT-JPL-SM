@@ -1,4 +1,17 @@
 def verify() -> bool:
+    """
+    Verifies the correctness of the PT-JPL-SM model implementation by comparing
+    its outputs to a reference dataset.
+
+    This function loads a known input table and the corresponding expected output table.
+    It runs the model on the input data, then compares the resulting outputs to the
+    reference outputs for key variables using strict numerical tolerances. If all
+    outputs match within tolerance, the function returns True. Otherwise, it prints
+    which column failed and returns False.
+
+    Returns:
+        bool: True if all model outputs match the reference outputs within tolerance, False otherwise.
+    """
     import pandas as pd
     import numpy as np
     from .ECOv002_calval_PTJPLSM_inputs import load_ECOv002_calval_PTJPLSM_inputs
