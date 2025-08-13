@@ -82,6 +82,7 @@ def PTJPLSM(
         emissivity: Union[Raster, np.ndarray, float] = None,
         albedo: Union[Raster, np.ndarray, float] = None,
         G_Wm2: Union[Raster, np.ndarray, float] = None,
+        SWin_Wm2: Union[Raster, np.ndarray, float] = None,
         Ta_C: Union[Raster, np.ndarray, float] = None,
         RH: Union[Raster, np.ndarray, float] = None,
         soil_moisture: Union[Raster, np.ndarray, float] = None,
@@ -267,17 +268,30 @@ def PTJPLSM(
                 geometry=geometry,
                 resampling=resampling
             )
+        
         Rn_results = verma_net_radiation(
-            SWin=SWin_Wm2,
+            SWin_Wm2=SWin_Wm2,
             albedo=albedo,
             ST_C=ST_C,
             emissivity=emissivity,
             Ta_C=Ta_C,
             RH=RH
         )
+
         Rn_Wm2 = Rn_results["Rn_Wm2"]
+
     if Rn_Wm2 is None:
-        raise ValueError("net radiation (Rn) not given")
+            missing_vars = []
+            if albedo is None:
+                missing_vars.append('albedo')
+            if ST_C is None:
+                missing_vars.append('ST_C')
+            if emissivity is None:
+                missing_vars.append('emissivity')
+            if missing_vars:
+                raise ValueError(f"net radiation (Rn_Wm2) not given, and missing required variables to calculate: {', '.join(missing_vars)}")
+            else:
+                raise ValueError("net radiation (Rn_Wm2) not given and cannot be calculated")
 
     check_distribution(Rn_Wm2, "Rn_Wm2")
 
@@ -289,8 +303,9 @@ def PTJPLSM(
             NDVI=NDVI,
             albedo=albedo
         )
+
     if G_Wm2 is None:
-        raise ValueError("soil heat flux (G) not given")
+        raise ValueError("soil heat flux (G_Wm2) not given, no Rn_Wm2, ST_C, NDVI, and albedo to calculate")
     
     check_distribution(G_Wm2, "G")
     results["G_Wm2"] = G_Wm2

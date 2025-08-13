@@ -41,8 +41,8 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         - 'Ta_C' or 'Ta': Air temperature in Celsius (required)
         - 'RH': Relative humidity (0-1, required)
         - 'SM': Soil moisture (required)
-        - 'Rn': Net radiation (W/m^2, required; can be computed with verma_net_radiation_table)
-        - 'Topt': Optimal plant temperature (optional, will be loaded if missing)
+        - 'Rn_Wm2': Net radiation (W/m^2, required; can be computed with verma_net_radiation_table)
+        - 'Topt_C': Optimal plant temperature (optional, will be loaded if missing)
         - 'fAPARmax': Maximum fAPAR (optional, will be loaded if missing)
         - 'canopy_height_meters': Canopy height (optional, will be loaded if missing)
         - 'field_capacity': Soil field capacity (optional, will be loaded if missing)
@@ -94,6 +94,7 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
     """
     # Extract and typecast surface temperature (ST_C) and NDVI
     ST_C = np.array(input_df.ST_C).astype(np.float64)
+    emissivity = np.array(input_df.emissivity).astype(np.float64)
     NDVI = np.array(input_df.NDVI).astype(np.float64)
 
     # Mask NDVI values below threshold (0.06) as NaN
@@ -103,22 +104,31 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
     albedo = np.array(input_df.albedo).astype(np.float64)
 
     # Handle air temperature column name differences (Ta_C or Ta)
-    if "Ta_C" in input_df:
-        Ta_C = np.array(input_df.Ta_C).astype(np.float64)
-    elif "Ta" in input_df:
-        Ta_C = np.array(input_df.Ta).astype(np.float64)
-    else:
-        raise KeyError("Input DataFrame must contain either 'Ta_C' or 'Ta' column.")
+    Ta_C = np.array(input_df.Ta_C).astype(np.float64)
 
     # Extract and typecast relative humidity, soil moisture, net radiation, Topt, and fAPARmax
     RH = np.array(input_df.RH).astype(np.float64)
     soil_moisture = np.array(input_df.SM).astype(np.float64)
-    Rn_Wm2 = np.array(input_df.Rn).astype(np.float64)
 
-    if "Topt" in input_df:
-        Topt = np.array(input_df.Topt).astype(np.float64)
+    if "SWin_Wm2" in input_df:
+        SWin_Wm2 = np.array(input_df.SWin_Wm2).astype(np.float64)
     else:
-        Topt = None
+        SWin_Wm2 = None
+
+    if "Rn_Wm2" in input_df:
+        Rn_Wm2 = np.array(input_df.Rn_Wm2).astype(np.float64)
+    else:
+        Rn_Wm2 = None
+
+    if "Rn_daily_Wm2" in input_df:
+        Rn_daily_Wm2 = np.array(input_df.Rn_daily_Wm2).astype(np.float64)
+    else:
+        Rn_daily_Wm2 = None
+
+    if "Topt_C" in input_df:
+        Topt_C = np.array(input_df.Topt_C).astype(np.float64)
+    else:
+        Topt_C = None
 
     if "fAPARmax" in input_df:
         fAPARmax = np.array(input_df.fAPARmax).astype(np.float64)
@@ -141,15 +151,16 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         wilting_point = None
 
     # Soil heat flux (G): use provided column if available, otherwise calculate using SEBAL method
-    if "G" in input_df:
-        G = np.array(input_df.G).astype(np.float64)
+    if "G_Wm2" in input_df:
+        G_Wm2 = np.array(input_df.G_Wm2).astype(np.float64)
     else:
-        G = calculate_SEBAL_soil_heat_flux(
-            Rn=Rn_Wm2,
-            ST_C=ST_C,
-            NDVI=NDVI,
-            albedo=albedo
-        ).astype(np.float64)
+        G_Wm2 = None
+        # G_Wm2 = calculate_SEBAL_soil_heat_flux(
+        #     Rn=Rn_Wm2,
+        #     ST_C=ST_C,
+        #     NDVI=NDVI,
+        #     albedo=albedo
+        # ).astype(np.float64)
 
     # --- Handle geometry and time columns ---
     import pandas as pd
@@ -187,13 +198,13 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         lat = np.array(input_df.lat).astype(np.float64)
         lon = np.array(input_df.lon).astype(np.float64)
         geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
-    elif Topt is None or fAPARmax is None or canopy_height_meters is None or field_capacity is None or wilting_point is None:
+    elif Topt_C is None or fAPARmax is None or canopy_height_meters is None or field_capacity is None or wilting_point is None:
         raise KeyError("Input DataFrame must contain either 'geometry' or both 'lat' and 'lon' columns.")
 
     time_UTC = pd.to_datetime(input_df.time_UTC).tolist()
 
-    if Topt is None:
-        Topt = load_Topt(geometry=geometry)
+    if Topt_C is None:
+        Topt_C = load_Topt(geometry=geometry)
     if fAPARmax is None:
         fAPARmax = load_fAPARmax(geometry=geometry)
     if canopy_height_meters is None:
@@ -213,16 +224,20 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         geometry=geometry,
         NDVI=NDVI,
         Ta_C=Ta_C,
+        ST_C=ST_C,
+        emissivity=emissivity,
         RH=RH,
         soil_moisture=soil_moisture,
         Rn_Wm2=Rn_Wm2,
-        Topt_C=Topt,
+        Rn_daily_Wm2=Rn_daily_Wm2,
+        Topt_C=Topt_C,
         fAPARmax=fAPARmax,
         canopy_height_meters=canopy_height_meters,
         field_capacity=field_capacity,
         wilting_point=wilting_point,
         albedo=albedo,
-        G_Wm2=G,
+        G_Wm2=G_Wm2,
+        SWin_Wm2=SWin_Wm2,
         time_UTC=time_UTC
     )
 
