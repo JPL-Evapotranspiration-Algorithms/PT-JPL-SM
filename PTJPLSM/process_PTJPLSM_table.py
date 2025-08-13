@@ -18,6 +18,7 @@ from SEBAL_soil_heat_flux import calculate_SEBAL_soil_heat_flux
 from PTJPL import load_Topt
 from PTJPL import load_fAPARmax
 
+from .constants import *
 from .model import PTJPLSM
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 def process_PTJPLSM_table(
         input_df: DataFrame,
+        upscale_to_daily: bool = UPSCALE_TO_DAILY,
         regenerate_net_radiation: bool = False
         ) -> DataFrame:
     """
@@ -253,7 +255,8 @@ def process_PTJPLSM_table(
         G_Wm2=G_Wm2,
         SWin_Wm2=SWin_Wm2,
         time_UTC=time_UTC,
-        regenerate_net_radiation=regenerate_net_radiation
+        regenerate_net_radiation=regenerate_net_radiation,
+        upscale_to_daily=upscale_to_daily
     )
 
     output_df = input_df.copy()
