@@ -29,13 +29,13 @@ dependencies = [
     "numpy",
     "pandas",
     "PTJPL>=1.5.1",
-    "rasters>=1.7.0",
+    "rasters>=1.9.0",
     "scikit-learn",
     "seaborn",
     "SEBAL-soil-heat-flux",
     "soil-capacity-wilting>=1.2.0",
     "solar-apparent-time",
-    "verma-net-radiation>=1.3.0"
+    "verma-net-radiation>=1.5.0"
 ]
 requires-python = ">=3.10"
 

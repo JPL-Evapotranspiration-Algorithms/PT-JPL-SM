@@ -101,7 +101,7 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
 
     # Extract and typecast albedo
     albedo = np.array(input_df.albedo).astype(np.float64)
-    
+
     # Handle air temperature column name differences (Ta_C or Ta)
     if "Ta_C" in input_df:
         Ta_C = np.array(input_df.Ta_C).astype(np.float64)
@@ -116,31 +116,26 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
     Rn_Wm2 = np.array(input_df.Rn).astype(np.float64)
 
     if "Topt" in input_df:
-        # If Topt is provided, use it directly
         Topt = np.array(input_df.Topt).astype(np.float64)
     else:
         Topt = None
-    
+
     if "fAPARmax" in input_df:
-        # If fAPARmax is provided, use it directly
         fAPARmax = np.array(input_df.fAPARmax).astype(np.float64)
     else:
         fAPARmax = None
 
     if "canopy_height_meters" in input_df:
-        # If canopy height is provided, use it directly
         canopy_height_meters = np.array(input_df.canopy_height_meters).astype(np.float64)
     else:
         canopy_height_meters = None
 
     if "field_capacity" in input_df:
-        # If field capacity is provided, use it directly
         field_capacity = np.array(input_df.field_capacity).astype(np.float64)
     else:
         field_capacity = None
 
     if "wilting_point" in input_df:
-        # If wilting point is provided, use it directly
         wilting_point = np.array(input_df.wilting_point).astype(np.float64)
     else:
         wilting_point = None
@@ -156,45 +151,63 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
             albedo=albedo
         ).astype(np.float64)
 
+    # --- Handle geometry and time columns ---
+    import pandas as pd
+    from rasters import MultiPoint, WGS84
+    from shapely.geometry import Point
+
+    def ensure_geometry(df):
+        if "geometry" in df:
+            if isinstance(df.geometry.iloc[0], str):
+                def parse_geom(s):
+                    s = s.strip()
+                    if s.startswith("POINT"):
+                        coords = s.replace("POINT", "").replace("(", "").replace(")", "").strip().split()
+                        return Point(float(coords[0]), float(coords[1]))
+                    elif "," in s:
+                        coords = [float(c) for c in s.split(",")]
+                        return Point(coords[0], coords[1])
+                    else:
+                        coords = [float(c) for c in s.split()]
+                        return Point(coords[0], coords[1])
+                df = df.copy()
+                df['geometry'] = df['geometry'].apply(parse_geom)
+        return df
+
+    input_df = ensure_geometry(input_df)
+
     if "geometry" in input_df:
-        # If geometry is provided, use it directly
-        geometry = input_df.geometry
+        geometry = MultiPoint(input_df.geometry, crs=WGS84)
     elif "lat" in input_df and "lon" in input_df:
-        # If latitude and longitude are provided, create a MultiPoint geometry
-        # Extract latitude and longitude, and create a geometry object for spatial context
         lat = np.array(input_df.lat).astype(np.float64)
         lon = np.array(input_df.lon).astype(np.float64)
         geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
     elif Topt is None or fAPARmax is None or canopy_height_meters is None or field_capacity is None or wilting_point is None:
         raise KeyError("Input DataFrame must contain either 'geometry' or both 'lat' and 'lon' columns.")
-    
-    if Topt is None:
-        # Load Topt if not provided
-        Topt = load_Topt(geometry=geometry)
-    
-    if fAPARmax is None:
-        # Load fAPARmax if not provided
-        fAPARmax = load_fAPARmax(geometry=geometry)
 
-    # If canopy height is not provided, load it
+    # Extract time if present
+    if "time_UTC" in input_df:
+        time_UTC = pd.to_datetime(input_df.time_UTC).tolist()
+    else:
+        time_UTC = None
+
+    if Topt is None:
+        Topt = load_Topt(geometry=geometry)
+    if fAPARmax is None:
+        fAPARmax = load_fAPARmax(geometry=geometry)
     if canopy_height_meters is None:
         from gedi_canopy_height import load_canopy_height
         canopy_height_meters = load_canopy_height(geometry=geometry)
-    
-    # If field capacity is not provided, load it
     if field_capacity is None:
         from soil_capacity_wilting import load_field_capacity
-        field_capacity = load_field_capacity(geometry=geometry) 
-
-    # If wilting point is not provided, load it
+        field_capacity = load_field_capacity(geometry=geometry)
     if wilting_point is None:
         from soil_capacity_wilting import load_wilting_point
         wilting_point = load_wilting_point(geometry=geometry)
 
-    # Mask fAPARmax values of zero as NaN
     fAPARmax = np.where(fAPARmax == 0, np.nan, fAPARmax).astype(np.float64)
 
-    # Run the PTJPLSM model with all required inputs
+    # --- Pass time and geometry to the model ---
     results = PTJPLSM(
         geometry=geometry,
         NDVI=NDVI,
@@ -208,14 +221,11 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         field_capacity=field_capacity,
         wilting_point=wilting_point,
         albedo=albedo,
-        G_Wm2=G
+        G_Wm2=G,
+        time_UTC=time_UTC
     )
 
-    # Copy the input DataFrame to avoid modifying the original
     output_df = input_df.copy()
-
-    # Append each model output as a new column in the DataFrame
     for key, value in results.items():
         output_df[key] = value
-
     return output_df
