@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "PTJPLSM"
-version = "1.5.4"
+version = "1.7.0"
 description = "Priestley-Taylor Jet Propulsion Laboratory Soil Moisutre Evapotranspiration Model"
 readme = "README.md"
 authors = [
@@ -16,12 +16,13 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "carlson-leaf-area-index",
     "check-distribution",
     "gedi-canopy-height",
     "GEOS5FP>=1.1.1",
     "numpy",
     "pandas",
-    "PTJPL>=1.4.3",
+    "PTJPL>=1.5.1",
     "rasters>=1.7.0",
     "SEBAL-soil-heat-flux",
     "soil-capacity-wilting>=1.2.0",
@@ -49,7 +50,7 @@ sensitivity = [
 ]
 
 [tool.setuptools.package-data]
-PTJPLSM = ["*.txt", "*.tif"]
+PTJPLSM = ["*.csv"]
 
 [tool.setuptools.packages.find]
 exclude = ["notebooks*", "references*"]
