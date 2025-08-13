@@ -38,8 +38,9 @@ from gedi_canopy_height import GEDI_DOWNLOAD_DIRECTORY
 from gedi_canopy_height import load_canopy_height
 
 from carlson_leaf_area_index import carlson_leaf_area_index
-
+from sun_angles import calculate_daylight
 from verma_net_radiation import verma_net_radiation, daily_Rn_integration_verma
+from daily_evapotranspiration_upscaling import daily_ET_from_instantaneous, daily_ET_from_daily_LE
 
 from PTJPL import GAMMA_PA
 from PTJPL import BETA_PA
@@ -404,5 +405,30 @@ def PTJPLSM(
 
     check_distribution(Rn_daily_Wm2, "Rn_daily_Wm2")
     results["Rn_daily_Wm2"] = Rn_daily_Wm2
+
+    EF = rt.where((LE_Wm2 == 0) | ((Rn_Wm2 - G_Wm2) == 0), 0, LE_Wm2 / (Rn_Wm2 - G_Wm2))
+    check_distribution(EF, "EF")
+    results["EF"] = EF
+
+        # Calculate latent heat flux during daylight
+    LE_daylight_Wm2 = EF * Rn_daily_Wm2
+    check_distribution(LE_daylight_Wm2, "LE_daylight_Wm2")
+    results["LE_daylight_Wm2"] = LE_daylight_Wm2
+
+    # Calculate daily ET
+    # ET = daily_ET_from_daily_LE(LE_daylight_Wm2, datetime_UTC=time_UTC, geometry=geometry)
+
+    daylight_hours = calculate_daylight(day_of_year=day_of_year, time_UTC=time_UTC, geometry=geometry)
+
+    # convert length of day in hours to seconds
+    daylight_seconds = daylight_hours * 3600.0
+
+    LAMBDA_JKG_WATER_20C = 2450000.0
+
+    # factor seconds out of watts to get joules and divide by latent heat of vaporization to get kilograms
+    ET_daily_kg = rt.clip(LE_daylight_Wm2 * daylight_seconds / LAMBDA_JKG_WATER_20C, 0.0, None)
+
+    check_distribution(ET_daily_kg, "ET_daily_kg")
+    results["ET_daily_kg"] = ET_daily_kg
 
     return results
