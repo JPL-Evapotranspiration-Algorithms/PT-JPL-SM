@@ -177,7 +177,12 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
     input_df = ensure_geometry(input_df)
 
     if "geometry" in input_df:
-        geometry = MultiPoint(input_df.geometry, crs=WGS84)
+        # Convert Point objects to coordinate tuples for MultiPoint
+        if hasattr(input_df.geometry.iloc[0], "x") and hasattr(input_df.geometry.iloc[0], "y"):
+            coords = [(pt.x, pt.y) for pt in input_df.geometry]
+            geometry = MultiPoint(coords, crs=WGS84)
+        else:
+            geometry = MultiPoint(input_df.geometry, crs=WGS84)
     elif "lat" in input_df and "lon" in input_df:
         lat = np.array(input_df.lat).astype(np.float64)
         lon = np.array(input_df.lon).astype(np.float64)
@@ -185,11 +190,7 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
     elif Topt is None or fAPARmax is None or canopy_height_meters is None or field_capacity is None or wilting_point is None:
         raise KeyError("Input DataFrame must contain either 'geometry' or both 'lat' and 'lon' columns.")
 
-    # Extract time if present
-    if "time_UTC" in input_df:
-        time_UTC = pd.to_datetime(input_df.time_UTC).tolist()
-    else:
-        time_UTC = None
+    time_UTC = pd.to_datetime(input_df.time_UTC).tolist()
 
     if Topt is None:
         Topt = load_Topt(geometry=geometry)

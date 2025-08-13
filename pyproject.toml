@@ -19,7 +19,7 @@ dependencies = [
     "carlson-leaf-area-index",
     "check-distribution",
     "daily-evapotranspiration-upscaling",
-    "ECOv002-calval-tables",
+    "ECOv002-calval-tables>=1.2.0",
     "ECOv002-CMR>=1.0.5",
     "ECOv002-granules>=1.0.3",
     "ECOv003-granules",
