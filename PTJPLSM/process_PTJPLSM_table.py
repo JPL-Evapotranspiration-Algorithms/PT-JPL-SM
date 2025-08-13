@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 # FIXME include additional inputs required by PT-JPL-SM that were not required by PT-JPL
 
 
-def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
+def process_PTJPLSM_table(
+        input_df: DataFrame,
+        regenerate_net_radiation: bool = False
+        ) -> DataFrame:
     """
     Processes an input DataFrame to prepare all required variables for the PT-JPL-SM model,
     runs the model, and returns a DataFrame with the model outputs appended as new columns.
@@ -92,6 +95,8 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         - All input columns should be numeric and of compatible shape.
         - This function is suitable for batch-processing site-level or point data tables for ET partitioning and for use in sensitivity analysis workflows.
     """
+    logger.info("starting PT-JPL-SM table processing")
+
     # Extract and typecast surface temperature (ST_C) and NDVI
     ST_C = np.array(input_df.ST_C).astype(np.float64)
     emissivity = np.array(input_df.emissivity).astype(np.float64)
@@ -187,6 +192,8 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
 
     input_df = ensure_geometry(input_df)
 
+    logger.info("started extracting geometry from PT-JPL-SM input table")
+
     if "geometry" in input_df:
         # Convert Point objects to coordinate tuples for MultiPoint
         if hasattr(input_df.geometry.iloc[0], "x") and hasattr(input_df.geometry.iloc[0], "y"):
@@ -198,26 +205,33 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         lat = np.array(input_df.lat).astype(np.float64)
         lon = np.array(input_df.lon).astype(np.float64)
         geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
-    elif Topt_C is None or fAPARmax is None or canopy_height_meters is None or field_capacity is None or wilting_point is None:
+    else:
         raise KeyError("Input DataFrame must contain either 'geometry' or both 'lat' and 'lon' columns.")
 
+    logger.info("completed extracting geometry from PT-JPL-SM input table")
+
+    logger.info("started extracting time from PT-JPL-SM input table")
     time_UTC = pd.to_datetime(input_df.time_UTC).tolist()
+    logger.info("completed extracting time from PT-JPL-SM input table")
 
-    if Topt_C is None:
-        Topt_C = load_Topt(geometry=geometry)
-    if fAPARmax is None:
-        fAPARmax = load_fAPARmax(geometry=geometry)
-    if canopy_height_meters is None:
-        from gedi_canopy_height import load_canopy_height
-        canopy_height_meters = load_canopy_height(geometry=geometry)
-    if field_capacity is None:
-        from soil_capacity_wilting import load_field_capacity
-        field_capacity = load_field_capacity(geometry=geometry)
-    if wilting_point is None:
-        from soil_capacity_wilting import load_wilting_point
-        wilting_point = load_wilting_point(geometry=geometry)
+    # if Topt_C is None:
+    #     Topt_C = load_Topt(geometry=geometry)
+    
+    # if fAPARmax is None:
+    #     fAPARmax = load_fAPARmax(geometry=geometry)
 
-    fAPARmax = np.where(fAPARmax == 0, np.nan, fAPARmax).astype(np.float64)
+    # if canopy_height_meters is None:
+    #     from gedi_canopy_height import load_canopy_height
+    #     canopy_height_meters = load_canopy_height(geometry=geometry)
+
+    # if field_capacity is None:
+    #     from soil_capacity_wilting import load_field_capacity
+    #     field_capacity = load_field_capacity(geometry=geometry)
+    # if wilting_point is None:
+    #     from soil_capacity_wilting import load_wilting_point
+    #     wilting_point = load_wilting_point(geometry=geometry)
+
+    # fAPARmax = np.where(fAPARmax == 0, np.nan, fAPARmax).astype(np.float64)
 
     # --- Pass time and geometry to the model ---
     results = PTJPLSM(
@@ -238,10 +252,14 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         albedo=albedo,
         G_Wm2=G_Wm2,
         SWin_Wm2=SWin_Wm2,
-        time_UTC=time_UTC
+        time_UTC=time_UTC,
+        regenerate_net_radiation=regenerate_net_radiation
     )
 
     output_df = input_df.copy()
     for key, value in results.items():
         output_df[key] = value
+
+    logger.info("PT-JPL-SM table processing complete")
+
     return output_df

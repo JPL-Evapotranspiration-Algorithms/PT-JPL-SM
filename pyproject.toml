@@ -25,10 +25,11 @@ dependencies = [
     "ECOv003-granules",
     "gedi-canopy-height",
     "GEOS5FP>=1.1.1",
-    "monte-carlo-sensitivity",
+    "monte-carlo-sensitivity>=1.4.0",
     "numpy",
     "pandas",
     "PTJPL>=1.5.1",
+    "pytictoc",
     "rasters>=1.9.0",
     "scikit-learn",
     "seaborn",
@@ -36,7 +37,7 @@ dependencies = [
     "soil-capacity-wilting>=1.2.0",
     "solar-apparent-time>=1.5.3",
     "sun-angles>1.2.0",
-    "verma-net-radiation>=1.6.0"
+    "verma-net-radiation>=1.7.0"
 ]
 requires-python = ">=3.10"
 
