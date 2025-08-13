@@ -202,13 +202,13 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         RH=RH,
         soil_moisture=soil_moisture,
         Rn_Wm2=Rn_Wm2,
-        Topt=Topt,
+        Topt_C=Topt,
         fAPARmax=fAPARmax,
         canopy_height_meters=canopy_height_meters,
         field_capacity=field_capacity,
         wilting_point=wilting_point,
         albedo=albedo,
-        G=G
+        G_Wm2=G
     )
 
     # Copy the input DataFrame to avoid modifying the original

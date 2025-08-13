@@ -69,7 +69,7 @@ from .partitioning import (
 
 def PTJPLSM(
         NDVI: Union[Raster, np.ndarray],
-        Rn_Wm2: Union[Raster, np.ndarray],
+        Rn_Wm2: Union[Raster, np.ndarray] = None,
         geometry: RasterGeometry = None,
         time_UTC: datetime = None,
         hour_of_day: np.ndarray = None,
@@ -78,13 +78,13 @@ def PTJPLSM(
         ST_C: Union[Raster, np.ndarray] = None,
         emissivity: Union[Raster, np.ndarray] = None,
         albedo: Union[Raster, np.ndarray] = None,
-        G: Union[Raster, np.ndarray] = None,
+        G_Wm2: Union[Raster, np.ndarray] = None,
         Ta_C: Union[Raster, np.ndarray] = None,
         RH: Union[Raster, np.ndarray] = None,
         soil_moisture: Union[Raster, np.ndarray] = None,
         field_capacity: Union[Raster, np.ndarray] = None,
         wilting_point: Union[Raster, np.ndarray] = None,
-        Topt: Union[Raster, np.ndarray] = None,
+        Topt_C: Union[Raster, np.ndarray] = None,
         fAPARmax: Union[Raster, np.ndarray] = None,
         canopy_height_meters: Union[Raster, np.ndarray] = None,
         delta_Pa: Union[Raster, np.ndarray, float] = None,
@@ -176,8 +176,8 @@ def PTJPLSM(
         geometry = NDVI.geometry
 
     # Load Topt and fAPARmax if not provided
-    if Topt is None and geometry is not None:
-        Topt = load_Topt(geometry)
+    if Topt_C is None and geometry is not None:
+        Topt_C = load_Topt(geometry)
 
     # check_distribution(Topt, "Topt")
 
@@ -258,14 +258,14 @@ def PTJPLSM(
 
     # If net radiation is not provided, compute from components
     if Rn_Wm2 is None and albedo is not None and ST_C is not None and emissivity is not None:
-        if SWin is None and geometry is not None and time_UTC is not None:
-            SWin = GEOS5FP_connection.SWin(
+        if SWin_Wm2 is None and geometry is not None and time_UTC is not None:
+            SWin_Wm2 = GEOS5FP_connection.SWin(
                 time_UTC=time_UTC,
                 geometry=geometry,
                 resampling=resampling
             )
         Rn_results = verma_net_radiation(
-            SWin=SWin,
+            SWin=SWin_Wm2,
             albedo=albedo,
             ST_C=ST_C,
             emissivity=emissivity,
@@ -279,18 +279,18 @@ def PTJPLSM(
     check_distribution(Rn_Wm2, "Rn_Wm2")
 
     # Compute soil heat flux if not provided
-    if G is None and Rn_Wm2 is not None and ST_C is not None and NDVI is not None and albedo is not None:
-        G = calculate_SEBAL_soil_heat_flux(
+    if G_Wm2 is None and Rn_Wm2 is not None and ST_C is not None and NDVI is not None and albedo is not None:
+        G_Wm2 = calculate_SEBAL_soil_heat_flux(
             Rn=Rn_Wm2,
             ST_C=ST_C,
             NDVI=NDVI,
             albedo=albedo
         )
-    if G is None:
+    if G_Wm2 is None:
         raise ValueError("soil heat flux (G) not given")
     
-    check_distribution(G, "G")
-    results["G"] = G
+    check_distribution(G_Wm2, "G")
+    results["G"] = G_Wm2
 
     # --- Meteorological Calculations ---
     # Calculate saturation vapor pressure (SVP) from air temperature
@@ -324,70 +324,73 @@ def PTJPLSM(
 
     check_distribution(fREW, "fREW")
 
-    check_distribution(Topt, "Topt")
+    check_distribution(Topt_C, "Topt")
 
     # Floor Topt to Ta_C if requested, then clip to minimum_Topt
     if floor_Topt:
-        Topt = rt.where(Ta_C > Topt, Ta_C, Topt)
+        Topt_C = rt.where(Ta_C > Topt_C, Ta_C, Topt_C)
 
-    Topt = rt.clip(Topt, minimum_Topt, None)
+    Topt_C = rt.clip(Topt_C, minimum_Topt, None)
 
-    check_distribution(Topt, "Topt")
+    check_distribution(Topt_C, "Topt")
 
     # Calculate plant temperature constraint (fT)
-    fT = calculate_plant_temperature_constraint(Ta_C, Topt)
+    fT = calculate_plant_temperature_constraint(Ta_C, Topt_C)
+    
     # Calculate LAI from NDVI
     LAI = carlson_leaf_area_index(NDVI)
 
     # --- Partitioning Calculations ---
     # Calculate epsilon if not provided
     if epsilon is None:
+        # If delta in Pascals is not provided, calculate from air temperature in Celcius
         if delta_Pa is None:
             delta_Pa = delta_Pa_from_Ta_C(Ta_C)
+
         epsilon = delta_Pa / (delta_Pa + gamma_Pa)
 
     check_distribution(epsilon, "epsilon")
 
     # --- Soil Evaporation ---
     # Net radiation of the soil
-    Rn_soil = calculate_soil_net_radiation(Rn_Wm2, LAI)
-    check_distribution(Rn_soil, "Rn_soil")
-    results["Rn_soil"] = Rn_soil
+    Rn_soil_Wm2 = calculate_soil_net_radiation(Rn_Wm2, LAI)
+    check_distribution(Rn_soil_Wm2, "Rn_soil")
+    results["Rn_soil"] = Rn_soil_Wm2
 
     # Soil evaporation (LEs)
-    LE_soil = calculate_soil_latent_heat_flux(Rn_soil, G, epsilon, fwet, fREW, PT_alpha)
-    check_distribution(LE_soil, "LE_soil")
-    results["LE_soil"] = LE_soil
+    LE_soil_Wm2 = calculate_soil_latent_heat_flux(Rn_soil_Wm2, G_Wm2, epsilon, fwet, fREW, PT_alpha)
+    check_distribution(LE_soil_Wm2, "LE_soil")
+    results["LE_soil"] = LE_soil_Wm2
 
     # --- Canopy Transpiration ---
     # Net radiation of the canopy
-    Rn_canopy = Rn_Wm2 - Rn_soil
-    check_distribution(Rn_canopy, "Rn_canopy")
-    results["Rn_canopy"] = Rn_canopy
+    Rn_canopy_Wm2 = Rn_Wm2 - Rn_soil_Wm2
+    check_distribution(Rn_canopy_Wm2, "Rn_canopy")
+    results["Rn_canopy"] = Rn_canopy_Wm2
     # Potential evapotranspiration (PET)
-    PET = PT_alpha * epsilon * (Rn_Wm2 - G)
-    check_distribution(PET, "PET")
-    results["PET"] = PET
+    PET_Wm2 = PT_alpha * epsilon * (Rn_Wm2 - G_Wm2)
+    check_distribution(PET_Wm2, "PET")
+    results["PET"] = PET_Wm2
     # Canopy moisture constraint (fTRM)
-    fTRM = calculate_fTRM(PET, RH, canopy_height_meters, soil_moisture, field_capacity, wilting_point, fM)
+    fTRM = calculate_fTRM(PET_Wm2, RH, canopy_height_meters, soil_moisture, field_capacity, wilting_point, fM)
     check_distribution(fTRM, "fTRM")
     # Canopy transpiration (LEc)
-    LE_canopy = calculate_canopy_latent_heat_flux(Rn_canopy, epsilon, fwet, fg, fT, fTRM, PT_alpha)
-    check_distribution(LE_canopy, "LE_canopy")
-    results["LE_canopy"] = LE_canopy
+    LE_canopy_Wm2 = calculate_canopy_latent_heat_flux(Rn_canopy_Wm2, epsilon, fwet, fg, fT, fTRM, PT_alpha)
+    check_distribution(LE_canopy_Wm2, "LE_canopy")
+    results["LE_canopy"] = LE_canopy_Wm2
 
     # --- Interception Evaporation ---
     # Interception evaporation (LEi)
-    LE_interception = calculate_interception(Rn_canopy, epsilon, fwet, PT_alpha)
-    check_distribution(LE_interception, "LE_interception")
-    results["LE_interception"] = LE_interception
+    LE_interception_Wm2 = calculate_interception(Rn_canopy_Wm2, epsilon, fwet, PT_alpha)
+    check_distribution(LE_interception_Wm2, "LE_interception")
+    results["LE_interception"] = LE_interception_Wm2
 
     # --- Combined Evapotranspiration ---
     # Total instantaneous evapotranspiration (LE)
-    LE = LE_soil + LE_canopy + LE_interception
+    LE_Wm2 = LE_soil_Wm2 + LE_canopy_Wm2 + LE_interception_Wm2
     # Constrain LE between 0 and PET
-    LE = np.clip(LE, 0, PET)
-    check_distribution(LE, "LE")
-    results["LE"] = LE
+    LE_Wm2 = np.clip(LE_Wm2, 0, PET_Wm2)
+    check_distribution(LE_Wm2, "LE")
+    results["LE"] = LE_Wm2
 
     return results
