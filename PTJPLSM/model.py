@@ -302,7 +302,7 @@ def PTJPLSM(
     # Calculate vapor pressure deficit (VPD)
     VPD_Pa = rt.clip(SVP_Pa - Ea_Pa, 0, None)
     # Calculate relative surface wetness
-    fwet = calculate_relative_surface_wetness(RH)
+    fwet = calculate_relative_surface_wetness(RH, RH_threshold=None)
 
     check_distribution(fwet, "fwet")
 
