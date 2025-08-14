@@ -17,7 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "carlson-leaf-area-index",
-    "check-distribution",
+    "check-distribution>=1.1.0",
     "daily-evapotranspiration-upscaling",
     "ECOv002-calval-tables>=1.4.0",
     "ECOv002-CMR>=1.0.5",
@@ -36,7 +36,7 @@ dependencies = [
     "SEBAL-soil-heat-flux",
     "soil-capacity-wilting>=1.2.0",
     "solar-apparent-time>=1.5.3",
-    "sun-angles>=1.5.0",
+    "sun-angles>=1.6.0",
     "verma-net-radiation>=1.7.0"
 ]
 requires-python = ">=3.10"
