@@ -18,6 +18,7 @@ from SEBAL_soil_heat_flux import calculate_SEBAL_soil_heat_flux
 from PTJPL import load_Topt
 from PTJPL import load_fAPARmax
 
+from .constants import *
 from .model import PTJPLSM
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,11 @@ logger = logging.getLogger(__name__)
 # FIXME include additional inputs required by PT-JPL-SM that were not required by PT-JPL
 
 
-def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
+def process_PTJPLSM_table(
+        input_df: DataFrame,
+        upscale_to_daily: bool = UPSCALE_TO_DAILY,
+        regenerate_net_radiation: bool = False
+        ) -> DataFrame:
     """
     Processes an input DataFrame to prepare all required variables for the PT-JPL-SM model,
     runs the model, and returns a DataFrame with the model outputs appended as new columns.
@@ -41,8 +46,8 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         - 'Ta_C' or 'Ta': Air temperature in Celsius (required)
         - 'RH': Relative humidity (0-1, required)
         - 'SM': Soil moisture (required)
-        - 'Rn': Net radiation (W/m^2, required; can be computed with verma_net_radiation_table)
-        - 'Topt': Optimal plant temperature (optional, will be loaded if missing)
+        - 'Rn_Wm2': Net radiation (W/m^2, required; can be computed with verma_net_radiation_table)
+        - 'Topt_C': Optimal plant temperature (optional, will be loaded if missing)
         - 'fAPARmax': Maximum fAPAR (optional, will be loaded if missing)
         - 'canopy_height_meters': Canopy height (optional, will be loaded if missing)
         - 'field_capacity': Soil field capacity (optional, will be loaded if missing)
@@ -92,8 +97,11 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
         - All input columns should be numeric and of compatible shape.
         - This function is suitable for batch-processing site-level or point data tables for ET partitioning and for use in sensitivity analysis workflows.
     """
+    logger.info("starting PT-JPL-SM table processing")
+
     # Extract and typecast surface temperature (ST_C) and NDVI
     ST_C = np.array(input_df.ST_C).astype(np.float64)
+    emissivity = np.array(input_df.emissivity).astype(np.float64)
     NDVI = np.array(input_df.NDVI).astype(np.float64)
 
     # Mask NDVI values below threshold (0.06) as NaN
@@ -101,121 +109,160 @@ def process_PTJPLSM_table(input_df: DataFrame) -> DataFrame:
 
     # Extract and typecast albedo
     albedo = np.array(input_df.albedo).astype(np.float64)
-    
+
     # Handle air temperature column name differences (Ta_C or Ta)
-    if "Ta_C" in input_df:
-        Ta_C = np.array(input_df.Ta_C).astype(np.float64)
-    elif "Ta" in input_df:
-        Ta_C = np.array(input_df.Ta).astype(np.float64)
-    else:
-        raise KeyError("Input DataFrame must contain either 'Ta_C' or 'Ta' column.")
+    Ta_C = np.array(input_df.Ta_C).astype(np.float64)
 
     # Extract and typecast relative humidity, soil moisture, net radiation, Topt, and fAPARmax
     RH = np.array(input_df.RH).astype(np.float64)
     soil_moisture = np.array(input_df.SM).astype(np.float64)
-    Rn_Wm2 = np.array(input_df.Rn).astype(np.float64)
 
-    if "Topt" in input_df:
-        # If Topt is provided, use it directly
-        Topt = np.array(input_df.Topt).astype(np.float64)
+    if "SWin_Wm2" in input_df:
+        SWin_Wm2 = np.array(input_df.SWin_Wm2).astype(np.float64)
     else:
-        Topt = None
-    
+        SWin_Wm2 = None
+
+    if "Rn_Wm2" in input_df:
+        Rn_Wm2 = np.array(input_df.Rn_Wm2).astype(np.float64)
+    else:
+        Rn_Wm2 = None
+
+    if "Rn_daily_Wm2" in input_df:
+        Rn_daily_Wm2 = np.array(input_df.Rn_daily_Wm2).astype(np.float64)
+    else:
+        Rn_daily_Wm2 = None
+
+    if "Topt_C" in input_df:
+        Topt_C = np.array(input_df.Topt_C).astype(np.float64)
+    else:
+        Topt_C = None
+
     if "fAPARmax" in input_df:
-        # If fAPARmax is provided, use it directly
         fAPARmax = np.array(input_df.fAPARmax).astype(np.float64)
     else:
         fAPARmax = None
 
     if "canopy_height_meters" in input_df:
-        # If canopy height is provided, use it directly
         canopy_height_meters = np.array(input_df.canopy_height_meters).astype(np.float64)
     else:
         canopy_height_meters = None
 
     if "field_capacity" in input_df:
-        # If field capacity is provided, use it directly
         field_capacity = np.array(input_df.field_capacity).astype(np.float64)
     else:
         field_capacity = None
 
     if "wilting_point" in input_df:
-        # If wilting point is provided, use it directly
         wilting_point = np.array(input_df.wilting_point).astype(np.float64)
     else:
         wilting_point = None
 
     # Soil heat flux (G): use provided column if available, otherwise calculate using SEBAL method
-    if "G" in input_df:
-        G = np.array(input_df.G).astype(np.float64)
+    if "G_Wm2" in input_df:
+        G_Wm2 = np.array(input_df.G_Wm2).astype(np.float64)
     else:
-        G = calculate_SEBAL_soil_heat_flux(
-            Rn=Rn_Wm2,
-            ST_C=ST_C,
-            NDVI=NDVI,
-            albedo=albedo
-        ).astype(np.float64)
+        G_Wm2 = None
+        # G_Wm2 = calculate_SEBAL_soil_heat_flux(
+        #     Rn=Rn_Wm2,
+        #     ST_C=ST_C,
+        #     NDVI=NDVI,
+        #     albedo=albedo
+        # ).astype(np.float64)
+
+    # --- Handle geometry and time columns ---
+    import pandas as pd
+    from rasters import MultiPoint, WGS84
+    from shapely.geometry import Point
+
+    def ensure_geometry(df):
+        if "geometry" in df:
+            if isinstance(df.geometry.iloc[0], str):
+                def parse_geom(s):
+                    s = s.strip()
+                    if s.startswith("POINT"):
+                        coords = s.replace("POINT", "").replace("(", "").replace(")", "").strip().split()
+                        return Point(float(coords[0]), float(coords[1]))
+                    elif "," in s:
+                        coords = [float(c) for c in s.split(",")]
+                        return Point(coords[0], coords[1])
+                    else:
+                        coords = [float(c) for c in s.split()]
+                        return Point(coords[0], coords[1])
+                df = df.copy()
+                df['geometry'] = df['geometry'].apply(parse_geom)
+        return df
+
+    input_df = ensure_geometry(input_df)
+
+    logger.info("started extracting geometry from PT-JPL-SM input table")
 
     if "geometry" in input_df:
-        # If geometry is provided, use it directly
-        geometry = input_df.geometry
+        # Convert Point objects to coordinate tuples for MultiPoint
+        if hasattr(input_df.geometry.iloc[0], "x") and hasattr(input_df.geometry.iloc[0], "y"):
+            coords = [(pt.x, pt.y) for pt in input_df.geometry]
+            geometry = MultiPoint(coords, crs=WGS84)
+        else:
+            geometry = MultiPoint(input_df.geometry, crs=WGS84)
     elif "lat" in input_df and "lon" in input_df:
-        # If latitude and longitude are provided, create a MultiPoint geometry
-        # Extract latitude and longitude, and create a geometry object for spatial context
         lat = np.array(input_df.lat).astype(np.float64)
         lon = np.array(input_df.lon).astype(np.float64)
         geometry = MultiPoint(x=lon, y=lat, crs=WGS84)
-    elif Topt is None or fAPARmax is None or canopy_height_meters is None or field_capacity is None or wilting_point is None:
+    else:
         raise KeyError("Input DataFrame must contain either 'geometry' or both 'lat' and 'lon' columns.")
+
+    logger.info("completed extracting geometry from PT-JPL-SM input table")
+
+    logger.info("started extracting time from PT-JPL-SM input table")
+    time_UTC = pd.to_datetime(input_df.time_UTC).tolist()
+    logger.info("completed extracting time from PT-JPL-SM input table")
+
+    # if Topt_C is None:
+    #     Topt_C = load_Topt(geometry=geometry)
     
-    if Topt is None:
-        # Load Topt if not provided
-        Topt = load_Topt(geometry=geometry)
-    
-    if fAPARmax is None:
-        # Load fAPARmax if not provided
-        fAPARmax = load_fAPARmax(geometry=geometry)
+    # if fAPARmax is None:
+    #     fAPARmax = load_fAPARmax(geometry=geometry)
 
-    # If canopy height is not provided, load it
-    if canopy_height_meters is None:
-        from gedi_canopy_height import load_canopy_height
-        canopy_height_meters = load_canopy_height(geometry=geometry)
-    
-    # If field capacity is not provided, load it
-    if field_capacity is None:
-        from soil_capacity_wilting import load_field_capacity
-        field_capacity = load_field_capacity(geometry=geometry) 
+    # if canopy_height_meters is None:
+    #     from gedi_canopy_height import load_canopy_height
+    #     canopy_height_meters = load_canopy_height(geometry=geometry)
 
-    # If wilting point is not provided, load it
-    if wilting_point is None:
-        from soil_capacity_wilting import load_wilting_point
-        wilting_point = load_wilting_point(geometry=geometry)
+    # if field_capacity is None:
+    #     from soil_capacity_wilting import load_field_capacity
+    #     field_capacity = load_field_capacity(geometry=geometry)
+    # if wilting_point is None:
+    #     from soil_capacity_wilting import load_wilting_point
+    #     wilting_point = load_wilting_point(geometry=geometry)
 
-    # Mask fAPARmax values of zero as NaN
-    fAPARmax = np.where(fAPARmax == 0, np.nan, fAPARmax).astype(np.float64)
+    # fAPARmax = np.where(fAPARmax == 0, np.nan, fAPARmax).astype(np.float64)
 
-    # Run the PTJPLSM model with all required inputs
+    # --- Pass time and geometry to the model ---
     results = PTJPLSM(
         geometry=geometry,
         NDVI=NDVI,
         Ta_C=Ta_C,
+        ST_C=ST_C,
+        emissivity=emissivity,
         RH=RH,
         soil_moisture=soil_moisture,
         Rn_Wm2=Rn_Wm2,
-        Topt_C=Topt,
+        Rn_daily_Wm2=Rn_daily_Wm2,
+        Topt_C=Topt_C,
         fAPARmax=fAPARmax,
         canopy_height_meters=canopy_height_meters,
         field_capacity=field_capacity,
         wilting_point=wilting_point,
         albedo=albedo,
-        G_Wm2=G
+        G_Wm2=G_Wm2,
+        SWin_Wm2=SWin_Wm2,
+        time_UTC=time_UTC,
+        regenerate_net_radiation=regenerate_net_radiation,
+        upscale_to_daily=upscale_to_daily
     )
 
-    # Copy the input DataFrame to avoid modifying the original
     output_df = input_df.copy()
-
-    # Append each model output as a new column in the DataFrame
     for key, value in results.items():
         output_df[key] = value
+
+    logger.info("PT-JPL-SM table processing complete")
 
     return output_df

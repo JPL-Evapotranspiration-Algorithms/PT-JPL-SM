@@ -23,10 +23,13 @@ References:
 """
 
 from typing import Union, Dict
+from pytictoc import TicToc
 import warnings
 import numpy as np
 import pandas as pd
 from datetime import datetime
+import logging
+
 import rasters as rt
 from rasters import Raster, RasterGeometry
 from GEOS5FP import GEOS5FP
@@ -38,6 +41,9 @@ from gedi_canopy_height import GEDI_DOWNLOAD_DIRECTORY
 from gedi_canopy_height import load_canopy_height
 
 from carlson_leaf_area_index import carlson_leaf_area_index
+from sun_angles import calculate_daylight
+from verma_net_radiation import verma_net_radiation, daily_Rn_integration_verma
+from daily_evapotranspiration_upscaling import daily_ET_from_instantaneous, daily_ET_from_daily_LE
 
 from PTJPL import GAMMA_PA
 from PTJPL import BETA_PA
@@ -58,7 +64,6 @@ from PTJPL import calculate_soil_net_radiation
 from PTJPL import calculate_interception
 from PTJPL import load_Topt
 from PTJPL import load_fAPARmax
-from PTJPL import verma_net_radiation
 from PTJPL import calculate_SEBAL_soil_heat_flux
 
 from .constants import *
@@ -67,26 +72,30 @@ from .partitioning import (
     calculate_soil_latent_heat_flux, calculate_canopy_latent_heat_flux
 )
 
+logger = logging.getLogger(__name__)
+
 def PTJPLSM(
-        NDVI: Union[Raster, np.ndarray],
-        Rn_Wm2: Union[Raster, np.ndarray] = None,
+        NDVI: Union[Raster, np.ndarray, float],
+        Rn_Wm2: Union[Raster, np.ndarray, float] = None,
+        Rn_daily_Wm2: Union[Raster, np.ndarray, float] = None,
         geometry: RasterGeometry = None,
         time_UTC: datetime = None,
         hour_of_day: np.ndarray = None,
         day_of_year: np.ndarray = None,
         GEOS5FP_connection: GEOS5FP = None,
         ST_C: Union[Raster, np.ndarray] = None,
-        emissivity: Union[Raster, np.ndarray] = None,
-        albedo: Union[Raster, np.ndarray] = None,
-        G_Wm2: Union[Raster, np.ndarray] = None,
-        Ta_C: Union[Raster, np.ndarray] = None,
-        RH: Union[Raster, np.ndarray] = None,
-        soil_moisture: Union[Raster, np.ndarray] = None,
-        field_capacity: Union[Raster, np.ndarray] = None,
-        wilting_point: Union[Raster, np.ndarray] = None,
-        Topt_C: Union[Raster, np.ndarray] = None,
-        fAPARmax: Union[Raster, np.ndarray] = None,
-        canopy_height_meters: Union[Raster, np.ndarray] = None,
+        emissivity: Union[Raster, np.ndarray, float] = None,
+        albedo: Union[Raster, np.ndarray, float] = None,
+        G_Wm2: Union[Raster, np.ndarray, float] = None,
+        SWin_Wm2: Union[Raster, np.ndarray, float] = None,
+        Ta_C: Union[Raster, np.ndarray, float] = None,
+        RH: Union[Raster, np.ndarray, float] = None,
+        soil_moisture: Union[Raster, np.ndarray, float] = None,
+        field_capacity: Union[Raster, np.ndarray, float] = None,
+        wilting_point: Union[Raster, np.ndarray, float] = None,
+        Topt_C: Union[Raster, np.ndarray, float] = None,
+        fAPARmax: Union[Raster, np.ndarray, float] = None,
+        canopy_height_meters: Union[Raster, np.ndarray, float] = None,
         delta_Pa: Union[Raster, np.ndarray, float] = None,
         gamma_Pa: Union[Raster, np.ndarray, float] = GAMMA_PA,
         epsilon=None,
@@ -98,6 +107,8 @@ def PTJPLSM(
         wilting_point_directory: str = SOIL_CAPACITY_DIRECTORY,
         canopy_height_directory: str = GEDI_DOWNLOAD_DIRECTORY,
         floor_Topt: bool = FLOOR_TOPT,
+        upscale_to_daily: bool = UPSCALE_TO_DAILY,
+        regenerate_net_radiation: bool = False,
         resampling: str = RESAMPLING) -> Dict[str, Union[Raster, np.ndarray]]:
     """
     PTJPLSM: Compute partitioned evapotranspiration using the PT-JPL-SM model.
@@ -171,17 +182,25 @@ def PTJPLSM(
     """
     results = {}
 
+    t = TicToc()
+    t.tic()
+    logger.info("starting PT-JPL-SM model run")
+
     # If geometry is not provided, try to extract from NDVI raster
     if geometry is None and isinstance(NDVI, Raster):
         geometry = NDVI.geometry
 
     # Load Topt and fAPARmax if not provided
     if Topt_C is None and geometry is not None:
+        logger.info("loading optimum temperature (Topt_C)")
         Topt_C = load_Topt(geometry)
+    elif Topt_C is not None:
+        logger.info("using given optimum temperature (Topt_C)")
 
-    # check_distribution(Topt, "Topt")
+    check_distribution(Topt_C, "Topt_C")
 
     if fAPARmax is None and geometry is not None:
+        logger.info("loading maximum fAPARmax")
         fAPARmax = load_fAPARmax(geometry)
 
     check_distribution(fAPARmax, "fAPARmax")
@@ -192,23 +211,30 @@ def PTJPLSM(
 
     # Load air temperature if not provided
     if Ta_C is None and geometry is not None and time_UTC is not None:
+        logger.info("retrieving air temperature (Ta_C) from GEOS-5 FP")
         Ta_C = GEOS5FP_connection.Ta_C(
             time_UTC=time_UTC,
             geometry=geometry,
             resampling=resampling
         )
-    if Ta_C is None:
+    elif Ta_C is not None:
+        logger.info("using given air temperature (Ta_C)")
+    elif Ta_C is None:
         raise ValueError("air temperature (Ta_C) not given")
 
     check_distribution(Ta_C, "Ta_C")
 
     # Load relative humidity if not provided
     if RH is None and geometry is not None and time_UTC is not None:
+        logger.info("retrieving relative humidity (RH) from GEOS-5 FP")
         RH = GEOS5FP_connection.RH(
             time_UTC=time_UTC,
             geometry=geometry,
             resampling=resampling
         )
+    elif RH is not None:
+        logger.info("using given relative humidity (RH)")
+
     if RH is None:
         raise ValueError("relative humidity (RH) not given")
 
@@ -216,11 +242,15 @@ def PTJPLSM(
 
     # Load soil moisture if not provided
     if soil_moisture is None and geometry is not None and time_UTC is not None:
+        logger.info("retrieving soil moisture (SM) from GEOS-5 FP")
         soil_moisture = GEOS5FP_connection.SM(
             time_UTC=time_UTC,
             geometry=geometry,
             resampling=resampling
         )
+    elif soil_moisture is not None:
+        logger.info("using given soil moisture (SM)")
+
     if soil_moisture is None:
         raise ValueError("soil moisture not given")
 
@@ -228,69 +258,111 @@ def PTJPLSM(
 
     # Load field capacity if not provided
     if field_capacity is None and geometry is not None:
+        logger.info("loading field capacity")
         field_capacity = load_field_capacity(
             geometry=geometry,
             directory=field_capacity_directory,
             resampling=resampling
         )
+    elif field_capacity is not None:
+        logger.info("using given field capacity")
 
     check_distribution(field_capacity, "field_capacity")
 
     # Load wilting point if not provided
     if wilting_point is None and geometry is not None:
+        logger.info("loading wilting point")
         wilting_point = load_wilting_point(
             geometry=geometry, 
             directory=wilting_point_directory,
             resampling=resampling
         )
+    elif wilting_point is not None:
+        logger.info("using given wilting point")
 
     check_distribution(wilting_point, "wilting_point")
 
     # Load canopy height if not provided
     if canopy_height_meters is None and geometry is not None:
+        logger.info("loading canopy height")
         canopy_height_meters = load_canopy_height(
             geometry=geometry, 
             source_directory=canopy_height_directory,
             resampling=resampling
         )
+    elif canopy_height_meters is not None:
+        logger.info("using given canopy height")
 
     check_distribution(canopy_height_meters, "canopy_height_meters")
 
     # If net radiation is not provided, compute from components
-    if Rn_Wm2 is None and albedo is not None and ST_C is not None and emissivity is not None:
+    if regenerate_net_radiation or (Rn_Wm2 is None and albedo is not None and ST_C is not None and emissivity is not None):
         if SWin_Wm2 is None and geometry is not None and time_UTC is not None:
+            logger.info("retrieving shortwave radiation (SWin_Wm2) from GEOS-5 FP")
             SWin_Wm2 = GEOS5FP_connection.SWin(
                 time_UTC=time_UTC,
                 geometry=geometry,
                 resampling=resampling
             )
+        elif SWin_Wm2 is not None:
+            logger.info("using given shortwave radiation (SWin_Wm2)")
+        
+        if upscale_to_daily:
+            logger.info("running Verma net radiation with daily upscaling")
+        else:
+            logger.info("running instantaneous Verma net radiation")
+
         Rn_results = verma_net_radiation(
-            SWin=SWin_Wm2,
+            SWin_Wm2=SWin_Wm2,
             albedo=albedo,
             ST_C=ST_C,
             emissivity=emissivity,
             Ta_C=Ta_C,
-            RH=RH
+            RH=RH,
+            upscale_to_daily=upscale_to_daily,
         )
-        Rn_Wm2 = Rn_results["Rn"]
+
+        Rn_Wm2 = Rn_results["Rn_Wm2"]
+        
+        if "Rn_daily_Wm2" in Rn_results:
+            Rn_daily_Wm2 = Rn_results["Rn_daily_Wm2"]
+
+    elif Rn_Wm2 is not None:
+        logger.info("using given net radiation (Rn_Wm2) for PT-JPL-SM processing")
+
     if Rn_Wm2 is None:
-        raise ValueError("net radiation (Rn) not given")
+            missing_vars = []
+            if albedo is None:
+                missing_vars.append('albedo')
+            if ST_C is None:
+                missing_vars.append('ST_C')
+            if emissivity is None:
+                missing_vars.append('emissivity')
+            if missing_vars:
+                raise ValueError(f"net radiation (Rn_Wm2) not given, and missing required variables to calculate: {', '.join(missing_vars)}")
+            else:
+                raise ValueError("net radiation (Rn_Wm2) not given and cannot be calculated")
 
     check_distribution(Rn_Wm2, "Rn_Wm2")
+    results["Rn_Wm2"] = Rn_Wm2
 
     # Compute soil heat flux if not provided
     if G_Wm2 is None and Rn_Wm2 is not None and ST_C is not None and NDVI is not None and albedo is not None:
+        logger.info("calculating soil heat flux (G_Wm2)")
         G_Wm2 = calculate_SEBAL_soil_heat_flux(
             Rn=Rn_Wm2,
             ST_C=ST_C,
             NDVI=NDVI,
             albedo=albedo
         )
+    elif G_Wm2 is not None:
+        logger.info("using given soil heat flux (G_Wm2)")
+
     if G_Wm2 is None:
-        raise ValueError("soil heat flux (G) not given")
+        raise ValueError("soil heat flux (G_Wm2) not given, no Rn_Wm2, ST_C, NDVI, and albedo to calculate")
     
     check_distribution(G_Wm2, "G")
-    results["G"] = G_Wm2
+    results["G_Wm2"] = G_Wm2
 
     # --- Meteorological Calculations ---
     # Calculate saturation vapor pressure (SVP) from air temperature
@@ -324,7 +396,7 @@ def PTJPLSM(
 
     check_distribution(fREW, "fREW")
 
-    check_distribution(Topt_C, "Topt")
+    check_distribution(Topt_C, "Topt_C")
 
     # Floor Topt to Ta_C if requested, then clip to minimum_Topt
     if floor_Topt:
@@ -332,7 +404,7 @@ def PTJPLSM(
 
     Topt_C = rt.clip(Topt_C, minimum_Topt, None)
 
-    check_distribution(Topt_C, "Topt")
+    check_distribution(Topt_C, "Topt_C")
 
     # Calculate plant temperature constraint (fT)
     fT = calculate_plant_temperature_constraint(Ta_C, Topt_C)
@@ -354,43 +426,90 @@ def PTJPLSM(
     # --- Soil Evaporation ---
     # Net radiation of the soil
     Rn_soil_Wm2 = calculate_soil_net_radiation(Rn_Wm2, LAI)
-    check_distribution(Rn_soil_Wm2, "Rn_soil")
-    results["Rn_soil"] = Rn_soil_Wm2
+    check_distribution(Rn_soil_Wm2, "Rn_soil_Wm2")
+    results["Rn_soil_Wm2"] = Rn_soil_Wm2
 
     # Soil evaporation (LEs)
     LE_soil_Wm2 = calculate_soil_latent_heat_flux(Rn_soil_Wm2, G_Wm2, epsilon, fwet, fREW, PT_alpha)
-    check_distribution(LE_soil_Wm2, "LE_soil")
-    results["LE_soil"] = LE_soil_Wm2
+    check_distribution(LE_soil_Wm2, "LE_soil_Wm2")
+    results["LE_soil_Wm2"] = LE_soil_Wm2
 
     # --- Canopy Transpiration ---
     # Net radiation of the canopy
     Rn_canopy_Wm2 = Rn_Wm2 - Rn_soil_Wm2
-    check_distribution(Rn_canopy_Wm2, "Rn_canopy")
-    results["Rn_canopy"] = Rn_canopy_Wm2
+    check_distribution(Rn_canopy_Wm2, "Rn_canopy_Wm2")
+    results["Rn_canopy_Wm2"] = Rn_canopy_Wm2
     # Potential evapotranspiration (PET)
     PET_Wm2 = PT_alpha * epsilon * (Rn_Wm2 - G_Wm2)
     check_distribution(PET_Wm2, "PET")
-    results["PET"] = PET_Wm2
+    results["PET_Wm2"] = PET_Wm2
     # Canopy moisture constraint (fTRM)
     fTRM = calculate_fTRM(PET_Wm2, RH, canopy_height_meters, soil_moisture, field_capacity, wilting_point, fM)
     check_distribution(fTRM, "fTRM")
     # Canopy transpiration (LEc)
     LE_canopy_Wm2 = calculate_canopy_latent_heat_flux(Rn_canopy_Wm2, epsilon, fwet, fg, fT, fTRM, PT_alpha)
-    check_distribution(LE_canopy_Wm2, "LE_canopy")
-    results["LE_canopy"] = LE_canopy_Wm2
+    check_distribution(LE_canopy_Wm2, "LE_canopy_Wm2")
+    results["LE_canopy_Wm2"] = LE_canopy_Wm2
 
     # --- Interception Evaporation ---
     # Interception evaporation (LEi)
     LE_interception_Wm2 = calculate_interception(Rn_canopy_Wm2, epsilon, fwet, PT_alpha)
-    check_distribution(LE_interception_Wm2, "LE_interception")
-    results["LE_interception"] = LE_interception_Wm2
+    check_distribution(LE_interception_Wm2, "LE_interception_Wm2")
+    results["LE_interception_Wm2"] = LE_interception_Wm2
 
     # --- Combined Evapotranspiration ---
     # Total instantaneous evapotranspiration (LE)
     LE_Wm2 = LE_soil_Wm2 + LE_canopy_Wm2 + LE_interception_Wm2
     # Constrain LE between 0 and PET
     LE_Wm2 = np.clip(LE_Wm2, 0, PET_Wm2)
-    check_distribution(LE_Wm2, "LE")
-    results["LE"] = LE_Wm2
+    check_distribution(LE_Wm2, "LE_Wm2")
+    results["LE_Wm2"] = LE_Wm2
+
+    if upscale_to_daily and time_UTC is not None:
+        logger.info("started daily ET upscaling")
+        t_et = TicToc()
+        t_et.tic()
+
+        if Rn_daily_Wm2 is None:
+            logger.info("running daily net radiation integration")
+            Rn_daily_Wm2 = daily_Rn_integration_verma(
+                Rn_Wm2=Rn_Wm2,
+                time_UTC=time_UTC,
+                geometry=geometry
+            )
+
+        check_distribution(Rn_daily_Wm2, "Rn_daily_Rn_Wm2")
+        results["Rn_daily_Wm2"] = Rn_daily_Wm2
+
+        EF = rt.where((LE_Wm2 == 0) | ((Rn_Wm2 - G_Wm2) == 0), 0, LE_Wm2 / (Rn_Wm2 - G_Wm2))
+        check_distribution(EF, "EF")
+        results["EF"] = EF
+
+        # Calculate latent heat flux during daylight
+        LE_daylight_Wm2 = EF * Rn_daily_Wm2
+        check_distribution(LE_daylight_Wm2, "LE_daylight_Wm2")
+        results["LE_daylight_Wm2"] = LE_daylight_Wm2
+
+        # Calculate daily ET
+        # ET = daily_ET_from_daily_LE(LE_daylight_Wm2, datetime_UTC=time_UTC, geometry=geometry)
+
+        daylight_hours = calculate_daylight(day_of_year=day_of_year, time_UTC=time_UTC, geometry=geometry)
+
+        # convert length of day in hours to seconds
+        daylight_seconds = daylight_hours * 3600.0
+
+        LAMBDA_JKG_WATER_20C = 2450000.0
+
+        # factor seconds out of watts to get joules and divide by latent heat of vaporization to get kilograms
+        ET_daily_kg = rt.clip(LE_daylight_Wm2 * daylight_seconds / LAMBDA_JKG_WATER_20C, 0.0, None)
+
+        check_distribution(ET_daily_kg, "ET_daily_kg")
+        results["ET_daily_kg"] = ET_daily_kg
+
+        elapsed_et = t_et.tocvalue()
+        logger.info(f"completed daily ET upscaling (elapsed: {elapsed_et:.2f} seconds)")
+
+    elapsed = t.tocvalue()
+    logger.info(f"PT-JPL-SM model run complete (elapsed: {elapsed:.2f} seconds)")
 
     return results
