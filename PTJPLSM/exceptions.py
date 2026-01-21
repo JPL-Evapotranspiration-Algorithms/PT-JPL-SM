@@ -1,0 +1,2 @@
+class MissingOfflineParameter(Exception):
+    pass
