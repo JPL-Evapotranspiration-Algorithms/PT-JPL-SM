@@ -4,7 +4,7 @@ requires = ["setuptools", "wheel"]
 [project]
 name = "PTJPLSM"
 version = "1.10.0"
-description = "Priestley-Taylor Jet Propulsion Laboratory Soil Moisutre Evapotranspiration Model"
+description = "Priestley-Taylor Jet Propulsion Laboratory Soil Moisture Evapotranspiration Model"
 readme = "README.md"
 authors = [
     { name = "Gregory Halverson", email = "gregory.h.halverson@jpl.nasa.gov" },
