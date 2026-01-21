@@ -67,6 +67,7 @@ from PTJPL import load_fAPARmax
 from PTJPL import calculate_SEBAL_soil_heat_flux
 
 from .constants import *
+from .exceptions import *
 from .partitioning import (
     calculate_fREW, calculate_fTRM,
     calculate_soil_latent_heat_flux, calculate_canopy_latent_heat_flux
@@ -109,7 +110,8 @@ def PTJPLSM(
         floor_Topt: bool = FLOOR_TOPT,
         upscale_to_daylight: bool = UPSCALE_TO_DAYLIGHT,
         regenerate_net_radiation: bool = False,
-        resampling: str = RESAMPLING) -> Dict[str, Union[Raster, np.ndarray]]:
+        resampling: str = RESAMPLING,
+        offline_mode: bool = False) -> Dict[str, Union[Raster, np.ndarray]]:
     """
     PTJPLSM: Compute partitioned evapotranspiration using the PT-JPL-SM model.
 
@@ -185,6 +187,22 @@ def PTJPLSM(
     t = TicToc()
     t.tic()
     logger.info("starting PT-JPL-SM model run")
+    
+    # Check for missing variables in offline mode before any GEOS-5 FP retrievals
+    if offline_mode:
+        missing_vars = []
+        
+        if Ta_C is None:
+            missing_vars.append("Ta_C")
+        if RH is None:
+            missing_vars.append("RH")
+        if soil_moisture is None:
+            missing_vars.append("soil_moisture")
+            
+        if missing_vars:
+            raise MissingOfflineParameter(
+                f"missing PT-JPL-SM inputs in offline mode: {', '.join(missing_vars)}"
+            )
 
     # If geometry is not provided, try to extract from NDVI raster
     if geometry is None and isinstance(NDVI, Raster):
