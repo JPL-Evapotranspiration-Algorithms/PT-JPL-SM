@@ -28,7 +28,7 @@ dependencies = [
     "monte-carlo-sensitivity>=1.4.0",
     "numpy",
     "pandas",
-    "PTJPL>=1.8.1",
+    "PTJPL>=1.9.0",
     "pytictoc",
     "rasters>=1.9.0",
     "scikit-learn",
