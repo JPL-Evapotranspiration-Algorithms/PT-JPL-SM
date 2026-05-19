@@ -3,6 +3,8 @@ import numpy as np
 import rasters as rt
 from rasters import Raster
 
+CANOPY_BUFFER_SENSITIVITY = 0.1
+
 def calculate_fTRM(
         PET: Union[Raster, np.ndarray], 
         RH: Union[Raster, np.ndarray], 
@@ -10,7 +12,8 @@ def calculate_fTRM(
         soil_moisture: Union[Raster, np.ndarray], 
         field_capacity: Union[Raster, np.ndarray], 
         wilting_point: Union[Raster, np.ndarray], 
-        fM: Union[Raster, np.ndarray]) -> Union[Raster, np.ndarray]:
+        fM: Union[Raster, np.ndarray],
+        canopy_buffer_sensitivity: float = CANOPY_BUFFER_SENSITIVITY) -> Union[Raster, np.ndarray]:
     """
     Calculates the PT-JPL-SM Transpiration Reduction Modifier (fTRM) term.
     This serves as an update to the standard PT-JPL plant moisture constraint (fM)
@@ -32,20 +35,18 @@ def calculate_fTRM(
         Soil wilting point in cubic meters per cubic meter (m³/m³).
     fM : Union[Raster, np.ndarray]
         Original PT-JPL plant moisture constraint based on atmospheric demand.
-
+    canopy_buffer_sensitivity : float, optional
+        Empirical parameter adjusting the soil moisture stress threshold based on canopy height and atmospheric demand.
     Returns:
     -------
     Union[Raster, np.ndarray]
         The updated canopy moisture constraint (fTRM), scaled between 0 and 1.
     """
-    # -------------------------------------------------------------------------
-    # 1. CANOPY HEIGHT SCALING & ATMOSPHERIC SENSITIVITY
-    # -------------------------------------------------------------------------
+    # Canopy Height Scaling & Atmospheric Sensitivity
     # 'p' is an empirical parameter adjusting the soil moisture stress threshold 
     # based on atmospheric demand (PET) and physical vegetation stature. Higher 
     # atmospheric demand shifts the soil moisture threshold for plant stress.
-    a = 0.1
-    p = (1 / (1 + PET)) - (a / (1 + canopy_height_meters))
+    stress_onset_weight = (1 / (1 + PET)) - (canopy_buffer_sensitivity / (1 + canopy_height_meters))
     
     # 'CHscalar' acts as a proxy for aerodynamic resistance and hydraulic capacitance.
     # The square root of canopy height is a standard scaling factor in these models.
@@ -60,24 +61,18 @@ def calculate_fTRM(
         # rt.where safely sets bare soil scenarios (CHscalar == 0) to 0.
         WPCH = rt.clip(rt.where(CHscalar == 0, 0, wilting_point / CHscalar), 0, 1)
         
-        # ---------------------------------------------------------------------
-        # 2. CRITICAL MOISTURE POINT (CR)
-        # ---------------------------------------------------------------------
+        # Critical Moisture Point (CR)
         # Represents the specific soil moisture threshold below which the vegetation 
         # begins to actively experience transpiration reduction/moisture stress.
-        CR = (1 - p) * (field_capacity - WPCH) + WPCH
+        CR = (1 - stress_onset_weight) * (field_capacity - WPCH) + WPCH
         
-        # ---------------------------------------------------------------------
-        # 3. TRANSPIRATION REDUCTION EVAPORATIVE WATER STRESS (fTREW)
-        # ---------------------------------------------------------------------
+        # Transpiration Reduction Evaporative Water Stress (fTREW)
         # Calculates raw soil moisture stress. As soil moisture drops below CR, 
         # fTREW scales down toward 0. The rate of this drop-off is non-linearly 
         # driven by CHscalar as an exponent.
         fTREW = rt.clip(1 - ((CR - soil_moisture) / (CR - WPCH)) ** CHscalar, 0, 1)
         
-    # -------------------------------------------------------------------------
-    # 4. RELATIVE HUMIDITY BUFFERING & FINAL INTEGRATION
-    # -------------------------------------------------------------------------
+    # Relative Humidity Buffering & Final Integration
     # 'RHSM' serves as a dynamic weighting factor. It determines the balance 
     # between atmospheric control (fM) and direct soil moisture control (fTREW).
     RHSM = RH ** (4 * (1 - soil_moisture) * (1 - RH))
