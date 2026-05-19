@@ -66,6 +66,17 @@ def calculate_fTRM(
     7. Final Transpiration Reduction Modifier (fTRM):
        $$fTRM = (1 - RHSM) \times fM + RHSM \times fTREW$$
 
+    Parameter Constraints & Eco-hydrological Bounds:
+    -------------------------------------------------
+    The canopy_buffer_sensitivity parameter must be bounded within [0.0, 1.0]:
+    * Setting to 0.0: Nullifies physical vegetation buffering. The stress onset 
+      threshold becomes driven solely by atmospheric demand (PET), meaning a 
+      30-meter forest and a 10-centimeter grassland respond identically to topsoil drying.
+    * Setting too high (> 1.0): Overpowers the atmospheric demand term and can drive 
+      stress_onset_weight negative. This unphysically pushes the Critical Moisture 
+      Point (CR) above Field Capacity, causing the model to falsely simulate severe 
+      transpiration stress in fully saturated soils.
+
     References:
     -----------
     1. Purdy, A. J., Fisher, J. B., Goulden, M. L., Colliander, A., Halverson, G. H., 
@@ -82,6 +93,14 @@ def calculate_fTRM(
        flux and evaporation using large-scale parameters. Monthly Weather Review, 
        100(2), 81-92. https://doi.org/10.1175/1520-0493(1972)100<0081:OTAOSH>2.3.CO;2
     """
+    # Parameter Validity Check
+    if not (0.0 <= canopy_buffer_sensitivity <= 1.0):
+        raise ValueError(
+            f"Invalid canopy_buffer_sensitivity ({canopy_buffer_sensitivity}). "
+            f"Parameter must be bounded between 0.0 and 1.0 to preserve "
+            f"eco-hydrological physical constraints."
+        )
+
     # Canopy Height Scaling & Atmospheric Sensitivity
     # 'stress_onset_weight' is an empirical parameter adjusting the soil moisture stress threshold 
     # based on atmospheric demand (PET) and physical vegetation stature. Higher 
