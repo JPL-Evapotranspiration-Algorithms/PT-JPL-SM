@@ -214,17 +214,17 @@ def PTJPLSM(
     # Load Topt and fAPARmax if not provided
     if Topt_C is None and geometry is not None:
         logger.info("loading optimum temperature (Topt_C)")
-        Topt_C = load_Topt(geometry)
+        Topt_C = load_Topt(geometry=geometry)
     elif Topt_C is not None:
         logger.info("using given optimum temperature (Topt_C)")
 
-    check_distribution(Topt_C, "Topt_C")
+    check_distribution(image=Topt_C, variable="Topt_C")
 
     if fAPARmax is None and geometry is not None:
         logger.info("loading maximum fAPARmax")
-        fAPARmax = load_fAPARmax(geometry)
+        fAPARmax = load_fAPARmax(geometry=geometry)
 
-    check_distribution(fAPARmax, "fAPARmax")
+    check_distribution(image=fAPARmax, variable="fAPARmax")
 
     # Create GEOS5FP connection if not provided
     if GEOS5FP_connection is None:
@@ -243,7 +243,7 @@ def PTJPLSM(
     elif Ta_C is None:
         raise ValueError("air temperature (Ta_C) not given")
 
-    check_distribution(Ta_C, "Ta_C")
+    check_distribution(image=Ta_C, variable="Ta_C")
 
     # Load relative humidity if not provided
     if RH is None and geometry is not None and time_UTC is not None:
@@ -259,7 +259,7 @@ def PTJPLSM(
     if RH is None:
         raise ValueError("relative humidity (RH) not given")
 
-    check_distribution(RH, "RH")
+    check_distribution(image=RH, variable="RH")
 
     # Load soil moisture if not provided
     if soil_moisture is None and geometry is not None and time_UTC is not None:
@@ -275,7 +275,7 @@ def PTJPLSM(
     if soil_moisture is None:
         raise ValueError("soil moisture not given")
 
-    check_distribution(soil_moisture, "soil_moisture")
+    check_distribution(image=soil_moisture, variable="soil_moisture")
 
     # Load field capacity if not provided
     if field_capacity is None and geometry is not None:
@@ -288,7 +288,7 @@ def PTJPLSM(
     elif field_capacity is not None:
         logger.info("using given field capacity")
 
-    check_distribution(field_capacity, "field_capacity")
+    check_distribution(image=field_capacity, variable="field_capacity")
 
     # Load wilting point if not provided
     if wilting_point is None and geometry is not None:
@@ -301,7 +301,7 @@ def PTJPLSM(
     elif wilting_point is not None:
         logger.info("using given wilting point")
 
-    check_distribution(wilting_point, "wilting_point")
+    check_distribution(image=wilting_point, variable="wilting_point")
 
     # Load canopy height if not provided
     if canopy_height_meters is None and geometry is not None:
@@ -314,7 +314,7 @@ def PTJPLSM(
     elif canopy_height_meters is not None:
         logger.info("using given canopy height")
 
-    check_distribution(canopy_height_meters, "canopy_height_meters")
+    check_distribution(image=canopy_height_meters, variable="canopy_height_meters")
 
     # If net radiation is not provided, compute from components
     if regenerate_net_radiation or (Rn_Wm2 is None and albedo is not None and ST_C is not None and emissivity is not None):
@@ -364,7 +364,7 @@ def PTJPLSM(
             else:
                 raise ValueError("net radiation (Rn_Wm2) not given and cannot be calculated")
 
-    check_distribution(Rn_Wm2, "Rn_Wm2")
+    check_distribution(image=Rn_Wm2, variable="Rn_Wm2")
     results["Rn_Wm2"] = Rn_Wm2
 
     # Compute soil heat flux if not provided
@@ -382,87 +382,99 @@ def PTJPLSM(
     if G_Wm2 is None:
         raise ValueError("soil heat flux (G_Wm2) not given, no Rn_Wm2, ST_C, NDVI, and albedo to calculate")
     
-    check_distribution(G_Wm2, "G")
+    check_distribution(image=G_Wm2, variable="G")
     results["G_Wm2"] = G_Wm2
 
     # --- Meteorological Calculations ---
     # Calculate saturation vapor pressure (SVP) from air temperature
-    SVP_Pa = SVP_Pa_from_Ta_C(Ta_C)
+    SVP_Pa = SVP_Pa_from_Ta_C(Ta_C=Ta_C)
     # Constrain RH between 0 and 1
-    RH = rt.clip(RH, 0, 1)
+    RH = rt.clip(a=RH, a_min=0, a_max=1)
     # Calculate actual vapor pressure
     Ea_Pa = RH * SVP_Pa
     # Calculate vapor pressure deficit (VPD)
-    VPD_Pa = rt.clip(SVP_Pa - Ea_Pa, 0, None)
+    VPD_Pa = rt.clip(a=(SVP_Pa - Ea_Pa), a_min=0, a_max=None)
     # Calculate relative surface wetness
-    fwet = calculate_relative_surface_wetness(RH, RH_threshold=None)
+    fwet = calculate_relative_surface_wetness(RH=RH, RH_threshold=None)
 
-    check_distribution(fwet, "fwet")
+    check_distribution(image=fwet, variable="fwet")
 
     # --- Vegetation Calculations ---
     # Convert NDVI to SAVI
-    SAVI = SAVI_from_NDVI(NDVI)
+    SAVI = SAVI_from_NDVI(NDVI=NDVI)
     # Calculate fAPAR from SAVI
-    fAPAR = fAPAR_from_SAVI(SAVI)
+    fAPAR = fAPAR_from_SAVI(SAVI=SAVI)
     # Calculate fIPAR from NDVI
-    fIPAR = fIPAR_from_NDVI(NDVI)
+    fIPAR = fIPAR_from_NDVI(NDVI=NDVI)
     # Replace zero fIPAR with NaN
     fIPAR = np.where(fIPAR == 0, np.nan, fIPAR)
     # Calculate green canopy fraction (fg)
-    fg = calculate_green_canopy_fraction(fAPAR, fIPAR)
+    fg = calculate_green_canopy_fraction(fAPAR=fAPAR, fIPAR=fIPAR)
     # Calculate plant moisture constraint (fM)
-    fM = calculate_plant_moisture_constraint(fAPAR, fAPARmax)
+    fM = calculate_plant_moisture_constraint(fAPAR=fAPAR, fAPARmax=fAPARmax)
     # Calculate soil moisture constraint (fREW)
-    fREW = calculate_fREW(soil_moisture, field_capacity, wilting_point, field_capacity_scale)
+    fREW = calculate_fREW(
+        soil_moisture=soil_moisture,
+        field_capacity=field_capacity,
+        wilting_point=wilting_point,
+        field_capacity_scale=field_capacity_scale,
+    )
 
-    check_distribution(fREW, "fREW")
+    check_distribution(image=fREW, variable="fREW")
 
-    check_distribution(Topt_C, "Topt_C")
+    check_distribution(image=Topt_C, variable="Topt_C")
 
     # Floor Topt to Ta_C if requested, then clip to minimum_Topt
     if floor_Topt:
-        Topt_C = rt.where(Ta_C > Topt_C, Ta_C, Topt_C)
+        Topt_C = rt.where(condition=(Ta_C > Topt_C), x=Ta_C, y=Topt_C)
 
-    Topt_C = rt.clip(Topt_C, minimum_Topt, None)
+    Topt_C = rt.clip(a=Topt_C, a_min=minimum_Topt, a_max=None)
 
-    check_distribution(Topt_C, "Topt_C")
+    check_distribution(image=Topt_C, variable="Topt_C")
 
     # Calculate plant temperature constraint (fT)
-    fT = calculate_plant_temperature_constraint(Ta_C, Topt_C)
+    fT = calculate_plant_temperature_constraint(Ta_C=Ta_C, Topt=Topt_C)
     
     # Calculate LAI from NDVI
-    LAI = carlson_leaf_area_index(NDVI)
+    LAI = carlson_leaf_area_index(NDVI=NDVI)
 
     # --- Partitioning Calculations ---
     # Calculate epsilon if not provided
     if epsilon is None:
         # If delta in Pascals is not provided, calculate from air temperature in Celcius
         if delta_Pa is None:
-            delta_Pa = delta_Pa_from_Ta_C(Ta_C)
+            delta_Pa = delta_Pa_from_Ta_C(Ta_C=Ta_C)
 
         epsilon = delta_Pa / (delta_Pa + gamma_Pa)
 
-    check_distribution(epsilon, "epsilon")
+    check_distribution(image=epsilon, variable="epsilon")
 
     # --- Soil Evaporation ---
     # Net radiation of the soil
-    Rn_soil_Wm2 = calculate_soil_net_radiation(Rn_Wm2, LAI)
-    check_distribution(Rn_soil_Wm2, "Rn_soil_Wm2")
+    Rn_soil_Wm2 = calculate_soil_net_radiation(Rn=Rn_Wm2, LAI=LAI)
+    check_distribution(image=Rn_soil_Wm2, variable="Rn_soil_Wm2")
     results["Rn_soil_Wm2"] = Rn_soil_Wm2
 
     # Soil evaporation (LEs)
-    LE_soil_Wm2 = calculate_soil_latent_heat_flux(Rn_soil_Wm2, G_Wm2, epsilon, fwet, fREW, PT_alpha)
-    check_distribution(LE_soil_Wm2, "LE_soil_Wm2")
+    LE_soil_Wm2 = calculate_soil_latent_heat_flux(
+        Rn_soil=Rn_soil_Wm2,
+        G=G_Wm2,
+        epsilon=epsilon,
+        fwet=fwet,
+        fREW=fREW,
+        PT_alpha=PT_alpha,
+    )
+    check_distribution(image=LE_soil_Wm2, variable="LE_soil_Wm2")
     results["LE_soil_Wm2"] = LE_soil_Wm2
 
     # --- Canopy Transpiration ---
     # Net radiation of the canopy
     Rn_canopy_Wm2 = Rn_Wm2 - Rn_soil_Wm2
-    check_distribution(Rn_canopy_Wm2, "Rn_canopy_Wm2")
+    check_distribution(image=Rn_canopy_Wm2, variable="Rn_canopy_Wm2")
     results["Rn_canopy_Wm2"] = Rn_canopy_Wm2
     # Potential evapotranspiration (PET_Wm2)
     PET_Wm2 = PT_alpha * epsilon * (Rn_Wm2 - G_Wm2)
-    check_distribution(PET_Wm2, "PET_Wm2")
+    check_distribution(image=PET_Wm2, variable="PET_Wm2")
     results["PET_Wm2"] = PET_Wm2
     
     # Canopy moisture constraint (fTRM)
@@ -477,25 +489,38 @@ def PTJPLSM(
         canopy_buffer_sensitivity=canopy_buffer_sensitivity
     )
     
-    check_distribution(fTRM, "fTRM")
+    check_distribution(image=fTRM, variable="fTRM")
     
     # Canopy transpiration (LEc)
-    LE_canopy_Wm2 = calculate_canopy_latent_heat_flux(Rn_canopy_Wm2, epsilon, fwet, fg, fT, fTRM, PT_alpha)
-    check_distribution(LE_canopy_Wm2, "LE_canopy_Wm2")
+    LE_canopy_Wm2 = calculate_canopy_latent_heat_flux(
+        Rn_canopy=Rn_canopy_Wm2,
+        epsilon=epsilon,
+        fwet=fwet,
+        fg=fg,
+        fT=fT,
+        fTRM=fTRM,
+        PT_alpha=PT_alpha,
+    )
+    check_distribution(image=LE_canopy_Wm2, variable="LE_canopy_Wm2")
     results["LE_canopy_Wm2"] = LE_canopy_Wm2
 
     # --- Interception Evaporation ---
     # Interception evaporation (LEi)
-    LE_interception_Wm2 = calculate_interception(Rn_canopy_Wm2, epsilon, fwet, PT_alpha)
-    check_distribution(LE_interception_Wm2, "LE_interception_Wm2")
+    LE_interception_Wm2 = calculate_interception(
+        Rn_canopy=Rn_canopy_Wm2,
+        epsilon=epsilon,
+        fwet=fwet,
+        PT_alpha=PT_alpha,
+    )
+    check_distribution(image=LE_interception_Wm2, variable="LE_interception_Wm2")
     results["LE_interception_Wm2"] = LE_interception_Wm2
 
     # --- Combined Evapotranspiration ---
     # Total instantaneous evapotranspiration (LE)
     LE_Wm2 = LE_soil_Wm2 + LE_canopy_Wm2 + LE_interception_Wm2
     # Constrain LE between 0 and PET_Wm2
-    LE_Wm2 = np.clip(LE_Wm2, 0, PET_Wm2)
-    check_distribution(LE_Wm2, "LE_Wm2")
+    LE_Wm2 = np.clip(a=LE_Wm2, a_min=0, a_max=PET_Wm2)
+    check_distribution(image=LE_Wm2, variable="LE_Wm2")
     results["LE_Wm2"] = LE_Wm2
 
     if upscale_to_daylight and time_UTC is not None:
