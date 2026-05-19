@@ -14,7 +14,7 @@ def calculate_fTRM(
         wilting_point: Union[Raster, np.ndarray], 
         fM: Union[Raster, np.ndarray],
         canopy_buffer_sensitivity: float = CANOPY_BUFFER_SENSITIVITY) -> Union[Raster, np.ndarray]:
-    """
+    r"""
     Calculates the PT-JPL-SM Transpiration Reduction Modifier (fTRM) term.
     This serves as an update to the standard PT-JPL plant moisture constraint (fM)
     for canopy latent heat flux by integrating explicit soil moisture dynamics.
@@ -43,26 +43,44 @@ def calculate_fTRM(
     Union[Raster, np.ndarray]
         The updated canopy moisture constraint (fTRM), scaled between 0 and 1.
 
+    Mathematical Formulations:
+    --------------------------
+    1. Stress Onset Weight (p):
+       $$stress\_onset\_weight = \frac{1}{1 + PET} - \frac{canopy\_buffer\_sensitivity}{1 + canopy\_height\_meters}$$
+
+    2. Canopy Height Scalar:
+       $$CHscalar = \sqrt{canopy\_height\_meters}$$
+
+    3. Canopy-Scaled Wilting Point (WPCH):
+       $$WPCH = \begin{cases} 0, & \text{if } CHscalar = 0 \\ \text{clip}\left(\frac{wilting\_point}{CHscalar}, 0, 1\right), & \text{otherwise} \end{cases}$$
+
+    4. Critical Moisture Point (CR):
+       $$CR = (1 - stress\_onset\_weight) \times (field\_capacity - WPCH) + WPCH$$
+
+    5. Transpiration Reduction Evaporative Water Stress (fTREW):
+       $$fTREW = \text{clip}\left(1 - \left(\frac{CR - soil\_moisture}{CR - WPCH}\right)^{CHscalar}, 0, 1\right)$$
+
+    6. Relative Humidity Soil Moisture Weighting Factor (RHSM):
+       $$RHSM = RH^{4 \times (1 - soil\_moisture) \times (1 - RH)}$$
+
+    7. Final Transpiration Reduction Modifier (fTRM):
+       $$fTRM = (1 - RHSM) \times fM + RHSM \times fTREW$$
+
     References:
     -----------
     1. Purdy, A. J., Fisher, J. B., Goulden, M. L., Colliander, A., Halverson, G. H., 
        Tu, K., & Famiglietti, J. S. (2018). SMAP soil moisture improves global 
        evapotranspiration. Remote Sensing of Environment, 219, 1-14. 
        https://doi.org/10.1016/j.rse.2018.09.023
-       (Introduces the PT-JPL-SM framework and the explicit mathematical formulation 
-       for the fTRM modifier and canopy buffer sensitivity).
 
     2. Fisher, J. B., Tu, K., & Baldocchi, D. D. (2008). Global estimates of the 
        land-atmosphere water flux based on monthly AVHRR and ISLSCP-II data, 
        validated at 16 FLUXNET sites. Remote Sensing of Environment, 112(3), 901-919.
        https://doi.org/10.1016/j.rse.2007.06.025
-       (Establishes the foundational PT-JPL model architecture, eco-physiological 
-       canopy partitioning, and the atmospheric plant moisture constraint fM).
 
     3. Priestley, C. H. B., & Taylor, R. J. (1972). On the assessment of surface heat 
        flux and evaporation using large-scale parameters. Monthly Weather Review, 
        100(2), 81-92. https://doi.org/10.1175/1520-0493(1972)100<0081:OTAOSH>2.3.CO;2
-       (The foundational baseline framework for equilibrium potential evaporation).
     """
     # Canopy Height Scaling & Atmospheric Sensitivity
     # 'stress_onset_weight' is an empirical parameter adjusting the soil moisture stress threshold 
