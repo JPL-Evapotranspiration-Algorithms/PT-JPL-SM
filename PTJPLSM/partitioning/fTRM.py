@@ -44,33 +44,9 @@ def calculate_fTRM(
 
     Mathematical Formulations & Sequential Logic:
     ----------------------------------------------
-    The algorithm initiates by establishing how atmospheric demand and physical 
-    canopy structure interact to modulate plant stress. First, a dynamic stress onset 
-    weight parameter ($p$, represented by the Python variable `stress_onset_weight`) is derived 
-    by balancing potential evapotranspiration ($PET$) against canopy height ($CH$, 
-    represented by `canopy_height_meters`), scaled by the empirical canopy weight sensitivity 
-    coefficient ($a$, represented by `canopy_buffer_sensitivity`):
-    $$p = \frac{1}{1 + PET} - \frac{a}{1 + CH}$$
-
-    Simultaneously, a structural canopy height scaling factor ($CH_{scalar}$, represented by 
-    `CHscalar`) is calculated as $CH_{scalar} = \sqrt{CH}$. This factor dynamically lowers 
-    the effective surface soil wilting point threshold ($\theta_{WP_{CH}}$, represented by `WPCH`) 
-    relative to the baseline soil-plant wilting point ($\theta_{WP}$, represented by `wilting_point`) 
-    for taller canopies, mathematically reflecting their deeper root networks and superior water 
-    extraction capabilities under high suction tension:
-    $$\theta_{WP_{CH}} = \begin{cases} 0, & \text{if } CH_{scalar} = 0 \\ \text{clip}\left(\frac{\theta_{WP}}{CH_{scalar}}, 0, 1\right), & \text{otherwise} \end{cases}$$
-
-    Using these boundaries, the critical soil moisture point ($\theta_{CR}$, represented by `CR`)—
-    the definitive volumetric soil moisture threshold below which vegetation begins to restrict 
-    transpiration—is mapped via linear interpolation between the soil field capacity 
-    ($\theta_{FC}$, represented by `field_capacity`) and the canopy-scaled wilting point ($\theta_{WP_{CH}}$):
-    $$\theta_{CR} = (1 - p)(\theta_{FC} - \theta_{WP_{CH}}) + \theta_{WP_{CH}}$$
-
-    The model then calculates the raw transpiration soil moisture constraint ($f_{TREW}$ or $STREW$, 
-    represented by `fTREW`) relative to this critical threshold. The rate at which water stress 
-    intensifies as observed volumetric soil moisture ($\theta_{obs}$ or $VWC$, represented by `soil_moisture`) 
-    drops is driven non-linearly by $CH_{scalar}$ acting as an exponent:
-    $$f_{TREW} = \text{clip}\left(1 - \left(\frac{\theta_{CR} - \theta_{obs}}{\theta_{CR} - \theta_{WP_{CH}}}\right)^{CH_{scalar}}, 0, 1\right)$$
+    The algorithm first computes the transpiration-side soil moisture stress scalar 
+    ($f_{TREW}$, represented by `fTREW`) by delegating to `calculate_fTREW`, which applies 
+    the canopy-height-adjusted soil moisture stress formulation documented in `fTREW.py`.
 
     To prevent a disconnect between topsoil drought and atmospheric humidity constraints, 
     a dynamic relative humidity soil moisture weighting factor ($RHSM$, represented by `RHSM`) 
@@ -87,13 +63,15 @@ def calculate_fTRM(
     Parameter Constraints & Eco-hydrological Bounds:
     -------------------------------------------------
     The canopy_buffer_sensitivity parameter ($a$) must be bounded within [0.0, 1.0]:
-    * Setting to 0.0: Nullifies physical vegetation buffering. The stress onset 
-      threshold becomes driven solely by atmospheric demand (PET), meaning a 
-      30-meter forest and a 10-centimeter grassland respond identically to topsoil drying.
+        * Setting to 0.0: Nullifies physical vegetation buffering in the delegated 
+            $f_{TREW}$ calculation. The stress onset threshold becomes driven solely by 
+            atmospheric demand (PET), meaning a 30-meter forest and a 10-centimeter 
+            grassland respond identically to topsoil drying.
     * Setting too high (> 1.0): Overpowers the atmospheric demand term and can drive 
-      stress_onset_weight ($p$) negative. This unphysically pushes the Critical Moisture 
-      Point ($\theta_{CR}$) above Field Capacity ($\theta_{FC}$), causing the model to falsely simulate 
-      severe transpiration stress in fully saturated soils.
+            the delegated stress onset weight ($p$) negative. This unphysically pushes the 
+            Critical Moisture Point ($\theta_{CR}$) above Field Capacity ($\theta_{FC}$), 
+            causing the model to falsely simulate severe transpiration stress in fully 
+            saturated soils.
 
     References:
     -----------

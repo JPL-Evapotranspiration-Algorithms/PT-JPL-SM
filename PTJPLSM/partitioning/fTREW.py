@@ -55,7 +55,7 @@ def calculate_fTREW(
     balances atmospheric demand ($PET$) against canopy height ($CH$, represented by `canopy_height_meters`), 
     modulated by the empirical canopy weight sensitivity coefficient ($a$, represented by 
     `canopy_buffer_sensitivity`)[cite: 191, 197]:
-    $$p = \frac{1}{1 + PET} - a\frac{1}{1 + CH}$$
+    $$p = \frac{1}{1 + PET} - \frac{a}{1 + CH}$$
 
     Concurrently, a structural canopy height scaling proxy ($CH_{scalar}$, represented by `CHscalar`) 
     is defined as the square root of the canopy height, which impacts the overall sensitivity to soil 
@@ -73,6 +73,8 @@ def calculate_fTREW(
     Using these dynamic boundaries, the critical soil moisture point ($\theta_{CR}$, represented by 
     `CR`)—the explicit volumetric threshold below which vegetation begins to actively reduce its 
     transpiration rate—is established via linear interpolation between the soil field capacity 
+    ($\theta_{FC}$, represented by `field_capacity`) and the canopy-scaled wilting point 
+    ($\theta_{WP_{CH}}$):
     $$\theta_{CR} = (1 - p)(\theta_{FC} - \theta_{WP_{CH}}) + \theta_{WP_{CH}}$$
 
     Finally, the module evaluates the raw transpiration soil moisture constraint ($f_{TREW}$ or $STREW$, 
