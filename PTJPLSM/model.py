@@ -68,12 +68,12 @@ from PTJPL import calculate_SEBAL_soil_heat_flux
 
 from .constants import *
 from .exceptions import *
-from .partitioning import (
-    calculate_fREW, calculate_fTRM,
-    calculate_soil_latent_heat_flux, calculate_canopy_latent_heat_flux
-)
+from .fREW import calculate_fREW
+from .fTRM import calculate_fTRM
+from .soil_latent_heat_flux import calculate_soil_latent_heat_flux
+from .canopy_latent_heat_flux import calculate_canopy_latent_heat_flux
 
-from .partitioning.fTRM import CANOPY_BUFFER_SENSITIVITY
+from .fTRM import CANOPY_BUFFER_SENSITIVITY
 
 logger = logging.getLogger(__name__)
 

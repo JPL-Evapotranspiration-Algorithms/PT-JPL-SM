@@ -3,7 +3,7 @@ import numpy as np
 import rasters as rt
 from rasters import Raster
 
-from ..constants import FIELD_CAPACITY_SCALE
+from .constants import FIELD_CAPACITY_SCALE
 
 def calculate_fREW(
         soil_moisture: Union[Raster, np.ndarray], 

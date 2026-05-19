@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from PTJPLSM.partitioning.fTREW import calculate_fTREW
+from PTJPLSM.fTREW import calculate_fTREW
 
 
 def _legacy_inline_fTREW(PET_Wm2, canopy_height_meters, soil_moisture, field_capacity, wilting_point, canopy_buffer_sensitivity):

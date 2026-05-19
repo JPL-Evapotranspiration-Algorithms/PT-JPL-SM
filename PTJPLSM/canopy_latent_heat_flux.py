@@ -5,7 +5,7 @@ from rasters import Raster
 
 import PTJPL
 
-from ..constants import PT_ALPHA
+from .constants import PT_ALPHA
 
 def calculate_canopy_latent_heat_flux(
         Rn_canopy: Union[Raster, np.ndarray],
