@@ -60,10 +60,10 @@ def process_PTJPLSM_table(
             - 'Rn_soil': Net radiation of the soil
             - 'LE_soil': Soil evaporation
             - 'Rn_canopy': Net radiation of the canopy
-            - 'PET': Potential evapotranspiration
+            - 'PET_Wm2': Potential evapotranspiration
             - 'LE_canopy': Canopy transpiration
             - 'LE_interception': Interception evaporation
-            - 'LE': Total instantaneous evapotranspiration (constrained between 0 and PET)
+            - 'LE': Total instantaneous evapotranspiration (constrained between 0 and PET_Wm2)
 
     Example:
         Suppose you have a CSV file with columns: NDVI, ST_C, albedo, Ta_C, RH, SM, Rn, lat, lon
@@ -82,7 +82,7 @@ def process_PTJPLSM_table(
         # Process the table and run the PT-JPL-SM model
         output_df = process_PTJPLSM_table(df)
 
-        # The output DataFrame will have new columns: 'G', 'Rn_soil', 'LE_soil', 'Rn_canopy', 'PET',
+        # The output DataFrame will have new columns: 'G', 'Rn_soil', 'LE_soil', 'Rn_canopy', 'PET_Wm2',
         # 'LE_canopy', 'LE_interception', 'LE' in addition to the original columns.
         print(output_df.head())
         ```

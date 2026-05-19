@@ -5,7 +5,7 @@ from rasters import Raster
 from .fTREW import CANOPY_BUFFER_SENSITIVITY, calculate_fTREW
 
 def calculate_fTRM(
-        PET: Union[Raster, np.ndarray], 
+    PET_Wm2: Union[Raster, np.ndarray], 
         RH: Union[Raster, np.ndarray], 
         canopy_height_meters: Union[Raster, np.ndarray], 
         soil_moisture: Union[Raster, np.ndarray], 
@@ -20,7 +20,7 @@ def calculate_fTRM(
 
     Parameters:
     ----------
-    PET : Union[Raster, np.ndarray]
+    PET_Wm2 : Union[Raster, np.ndarray]
         Potential evapotranspiration in watts per square meter (W/m²).
     RH : Union[Raster, np.ndarray]
         Relative humidity scaled between 0 and 1.
@@ -65,7 +65,7 @@ def calculate_fTRM(
     The canopy_buffer_sensitivity parameter ($a$) must be bounded within [0.0, 1.0]:
         * Setting to 0.0: Nullifies physical vegetation buffering in the delegated 
             $f_{TREW}$ calculation. The stress onset threshold becomes driven solely by 
-            atmospheric demand (PET), meaning a 30-meter forest and a 10-centimeter 
+            atmospheric demand (PET_Wm2), meaning a 30-meter forest and a 10-centimeter 
             grassland respond identically to topsoil drying.
     * Setting too high (> 1.0): Overpowers the atmospheric demand term and can drive 
             the delegated stress onset weight ($p$) negative. This unphysically pushes the 
@@ -99,7 +99,7 @@ def calculate_fTRM(
 
     # Compute the transpiration-side soil moisture stress scalar.
     fTREW = calculate_fTREW(
-        PET=PET,
+        PET_Wm2=PET_Wm2,
         canopy_height_meters=canopy_height_meters,
         soil_moisture=soil_moisture,
         field_capacity=field_capacity,

@@ -8,7 +8,7 @@ CANOPY_BUFFER_SENSITIVITY = 0.1
 
 
 def calculate_fTREW(
-        PET: Union[Raster, np.ndarray],
+    PET_Wm2: Union[Raster, np.ndarray],
         canopy_height_meters: Union[Raster, np.ndarray],
         soil_moisture: Union[Raster, np.ndarray],
         field_capacity: Union[Raster, np.ndarray],
@@ -22,7 +22,7 @@ def calculate_fTREW(
 
     Parameters
     ----------
-    PET : Union[Raster, np.ndarray]
+    PET_Wm2 : Union[Raster, np.ndarray]
         Potential evapotranspiration in watts per square meter (W/m²)[cite: 79, 197].
     canopy_height_meters : Union[Raster, np.ndarray]
         Height of the plant canopy (CH) in meters[cite: 103, 197].
@@ -52,7 +52,8 @@ def calculate_fTREW(
     The calculation begins by determining a dynamic stress onset weight parameter ($p$, represented 
     by the Python variable `stress_onset_weight`) that quantifies the point at which soil water 
     availability begins to limit transpiration below the potential rate[cite: 197]. This parameter 
-    balances atmospheric demand ($PET$) against canopy height ($CH$, represented by `canopy_height_meters`), 
+    balances atmospheric demand ($PET$, represented by `PET_Wm2`) against canopy height 
+    ($CH$, represented by `canopy_height_meters`), 
     modulated by the empirical canopy weight sensitivity coefficient ($a$, represented by 
     `canopy_buffer_sensitivity`)[cite: 191, 197]:
     $$p = \frac{1}{1 + PET} - \frac{a}{1 + CH}$$
@@ -90,7 +91,7 @@ def calculate_fTREW(
     imposes on the critical moisture point boundary ($\theta_{CR}$)[cite: 197]. It must be physically 
     bounded within [0.0, 1.0] to preserve realistic eco-hydrological constraints:
     * Setting to 0.0: Nullifies physical vegetation buffering, driving the stress onset parameter 
-      purely by atmospheric demand ($p = \frac{1}{1 + PET}$), meaning a 30-meter forest and a 
+            purely by atmospheric demand ($p = \frac{1}{1 + PET}$, using `PET_Wm2`), meaning a 30-meter forest and a 
       10-centimeter grassland respond identically to topsoil drying[cite: 191].
     * Setting too high (> 1.0): Overpowers the atmospheric demand term and can drive the stress weight 
       ($p$) negative, unphysically pushing the Critical Moisture Point ($\theta_{CR}$) above Field 
@@ -121,7 +122,7 @@ def calculate_fTREW(
         )
 
     # 1. Stress Onset Weight Calculation (p)
-    stress_onset_weight = (1 / (1 + PET)) - (canopy_buffer_sensitivity / (1 + canopy_height_meters))
+    stress_onset_weight = (1 / (1 + PET_Wm2)) - (canopy_buffer_sensitivity / (1 + canopy_height_meters))
     
     # 2. Structural Canopy Height Scaling (CH_scalar)
     CHscalar = np.sqrt(canopy_height_meters)

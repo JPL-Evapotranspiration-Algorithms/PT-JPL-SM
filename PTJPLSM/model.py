@@ -13,10 +13,10 @@ Returns:
         - 'Rn_soil': Net radiation of the soil
         - 'LE_soil': Soil evaporation
         - 'Rn_canopy': Net radiation of the canopy
-        - 'PET': Potential evapotranspiration
+        - 'PET_Wm2': Potential evapotranspiration
         - 'LE_canopy': Canopy transpiration
         - 'LE_interception': Interception evaporation
-        - 'LE': Total instantaneous evapotranspiration (constrained between 0 and PET)
+        - 'LE': Total instantaneous evapotranspiration (constrained between 0 and PET_Wm2)
 
 References:
     - Purdy et al. (2018), "PT-JPL-SM: A PT-JPL model variant incorporating soil moisture stress for improved global evapotranspiration partitioning."
@@ -152,7 +152,7 @@ def PTJPLSM(
         resampling: Resampling method (str, optional)
 
     Returns:
-        Dictionary with keys: 'G', 'Rn_soil', 'LE_soil', 'Rn_canopy', 'PET', 'LE_canopy', 'LE_interception', 'LE'
+        Dictionary with keys: 'G', 'Rn_soil', 'LE_soil', 'Rn_canopy', 'PET_Wm2', 'LE_canopy', 'LE_interception', 'LE'
 
     Example:
         The following example demonstrates how to use PTJPLSM with ECOSTRESS data:
@@ -460,9 +460,9 @@ def PTJPLSM(
     Rn_canopy_Wm2 = Rn_Wm2 - Rn_soil_Wm2
     check_distribution(Rn_canopy_Wm2, "Rn_canopy_Wm2")
     results["Rn_canopy_Wm2"] = Rn_canopy_Wm2
-    # Potential evapotranspiration (PET)
+    # Potential evapotranspiration (PET_Wm2)
     PET_Wm2 = PT_alpha * epsilon * (Rn_Wm2 - G_Wm2)
-    check_distribution(PET_Wm2, "PET")
+    check_distribution(PET_Wm2, "PET_Wm2")
     results["PET_Wm2"] = PET_Wm2
     
     # Canopy moisture constraint (fTRM)
@@ -493,7 +493,7 @@ def PTJPLSM(
     # --- Combined Evapotranspiration ---
     # Total instantaneous evapotranspiration (LE)
     LE_Wm2 = LE_soil_Wm2 + LE_canopy_Wm2 + LE_interception_Wm2
-    # Constrain LE between 0 and PET
+    # Constrain LE between 0 and PET_Wm2
     LE_Wm2 = np.clip(LE_Wm2, 0, PET_Wm2)
     check_distribution(LE_Wm2, "LE_Wm2")
     results["LE_Wm2"] = LE_Wm2
