@@ -1,9 +1,8 @@
 from typing import Union
 import numpy as np
-import rasters as rt
 from rasters import Raster
 
-CANOPY_BUFFER_SENSITIVITY = 0.1
+from .fTREW import CANOPY_BUFFER_SENSITIVITY, calculate_fTREW
 
 def calculate_fTRM(
         PET: Union[Raster, np.ndarray], 
@@ -120,35 +119,15 @@ def calculate_fTRM(
             f"eco-hydrological physical constraints."
         )
 
-    # Canopy Height Scaling & Atmospheric Sensitivity
-    # 'stress_onset_weight' (p) is an empirical parameter adjusting the soil moisture stress threshold 
-    # based on atmospheric demand (PET) and physical vegetation stature (CH). Higher 
-    # atmospheric demand shifts the soil moisture threshold for plant stress.
-    stress_onset_weight = (1 / (1 + PET)) - (canopy_buffer_sensitivity / (1 + canopy_height_meters))
-    
-    # 'CHscalar' (CH_scalar) acts as a proxy for aerodynamic resistance and hydraulic capacitance.
-    # The square root of canopy height is a standard scaling factor in these models.
-    CHscalar = np.sqrt(canopy_height_meters)
-    
-    # Suppress runtime warnings caused by division by zero or NaN values over 
-    # invalid pixels (e.g., open water body pixels or non-vegetated regions).
-    with np.errstate(divide='ignore', invalid='ignore'):
-        
-        # 'WPCH' (\theta_WP_CH) scales the wilting point downward for taller canopies, accounting for 
-        # deeper root networks and greater water extraction capabilities under tension.
-        # rt.where safely sets bare soil scenarios (CHscalar == 0) to 0.
-        WPCH = rt.clip(rt.where(CHscalar == 0, 0, wilting_point / CHscalar), 0, 1)
-        
-        # Critical Moisture Point (CR, \theta_CR)
-        # Represents the specific soil moisture threshold below which the vegetation 
-        # begins to actively experience transpiration reduction/moisture stress.
-        CR = (1 - stress_onset_weight) * (field_capacity - WPCH) + WPCH
-        
-        # Transpiration Reduction Evaporative Water Stress (fTREW, STREW)
-        # Calculates raw soil moisture stress. As observed soil moisture (\theta_obs) drops below CR, 
-        # fTREW scales down toward 0. The rate of this drop-off is non-linearly 
-        # driven by CHscalar as an exponent.
-        fTREW = rt.clip(1 - ((CR - soil_moisture) / (CR - WPCH)) ** CHscalar, 0, 1)
+    # Compute the transpiration-side soil moisture stress scalar.
+    fTREW = calculate_fTREW(
+        PET=PET,
+        canopy_height_meters=canopy_height_meters,
+        soil_moisture=soil_moisture,
+        field_capacity=field_capacity,
+        wilting_point=wilting_point,
+        canopy_buffer_sensitivity=canopy_buffer_sensitivity,
+    )
         
     # Relative Humidity Buffering & Final Integration
     # 'RHSM' serves as a dynamic weighting factor based on RH and volumetric water content (\theta_obs).
@@ -156,8 +135,7 @@ def calculate_fTRM(
     RHSM = RH ** (4 * (1 - soil_moisture) * (1 - RH))
     
     # 'fTRM' (f_TRM) blends the original atmospheric constraint (fM) with the new soil moisture
-    # constraint (fTREW) using RHSM as the slider. NaNs in fTREW (e.g., where CR == WPCH)
-    # are caught and defaulted safely to a highly-stressed zero condition.
-    fTRM = (1 - RHSM) * fM + RHSM * rt.where(np.isnan(fTREW), 0, fTREW)
+    # constraint (fTREW) using RHSM as the slider.
+    fTRM = (1 - RHSM) * fM + RHSM * fTREW
 
     return fTRM

@@ -73,6 +73,8 @@ from .partitioning import (
     calculate_soil_latent_heat_flux, calculate_canopy_latent_heat_flux
 )
 
+from .partitioning.fTRM import CANOPY_BUFFER_SENSITIVITY
+
 logger = logging.getLogger(__name__)
 
 def PTJPLSM(
@@ -102,6 +104,7 @@ def PTJPLSM(
         epsilon=None,
         beta_Pa: float = BETA_PA,
         PT_alpha: float = PT_ALPHA,
+        canopy_buffer_sensitivity: float = CANOPY_BUFFER_SENSITIVITY,
         field_capacity_scale: float = FIELD_CAPACITY_SCALE,
         minimum_Topt: float = MINIMUM_TOPT,
         field_capacity_directory: str = SOIL_CAPACITY_DIRECTORY,
@@ -461,9 +464,21 @@ def PTJPLSM(
     PET_Wm2 = PT_alpha * epsilon * (Rn_Wm2 - G_Wm2)
     check_distribution(PET_Wm2, "PET")
     results["PET_Wm2"] = PET_Wm2
+    
     # Canopy moisture constraint (fTRM)
-    fTRM = calculate_fTRM(PET_Wm2, RH, canopy_height_meters, soil_moisture, field_capacity, wilting_point, fM)
+    fTRM = calculate_fTRM(
+        PET_Wm2=PET_Wm2,
+        RH=RH,
+        canopy_height_meters=canopy_height_meters,
+        soil_moisture=soil_moisture,
+        field_capacity=field_capacity,
+        wilting_point=wilting_point,
+        fM=fM,
+        canopy_buffer_sensitivity=canopy_buffer_sensitivity
+    )
+    
     check_distribution(fTRM, "fTRM")
+    
     # Canopy transpiration (LEc)
     LE_canopy_Wm2 = calculate_canopy_latent_heat_flux(Rn_canopy_Wm2, epsilon, fwet, fg, fT, fTRM, PT_alpha)
     check_distribution(LE_canopy_Wm2, "LE_canopy_Wm2")
