@@ -37,13 +37,35 @@ def calculate_fTRM(
         Original PT-JPL plant moisture constraint based on atmospheric demand.
     canopy_buffer_sensitivity : float, optional
         Empirical parameter adjusting the soil moisture stress threshold based on canopy height and atmospheric demand.
+
     Returns:
     -------
     Union[Raster, np.ndarray]
         The updated canopy moisture constraint (fTRM), scaled between 0 and 1.
+
+    References:
+    -----------
+    1. Purdy, A. J., Fisher, J. B., Goulden, M. L., Colliander, A., Halverson, G. H., 
+       Tu, K., & Famiglietti, J. S. (2018). SMAP soil moisture improves global 
+       evapotranspiration. Remote Sensing of Environment, 219, 1-14. 
+       https://doi.org/10.1016/j.rse.2018.09.023
+       (Introduces the PT-JPL-SM framework and the explicit mathematical formulation 
+       for the fTRM modifier and canopy buffer sensitivity).
+
+    2. Fisher, J. B., Tu, K., & Baldocchi, D. D. (2008). Global estimates of the 
+       land-atmosphere water flux based on monthly AVHRR and ISLSCP-II data, 
+       validated at 16 FLUXNET sites. Remote Sensing of Environment, 112(3), 901-919.
+       https://doi.org/10.1016/j.rse.2007.06.025
+       (Establishes the foundational PT-JPL model architecture, eco-physiological 
+       canopy partitioning, and the atmospheric plant moisture constraint fM).
+
+    3. Priestley, C. H. B., & Taylor, R. J. (1972). On the assessment of surface heat 
+       flux and evaporation using large-scale parameters. Monthly Weather Review, 
+       100(2), 81-92. https://doi.org/10.1175/1520-0493(1972)100<0081:OTAOSH>2.3.CO;2
+       (The foundational baseline framework for equilibrium potential evaporation).
     """
     # Canopy Height Scaling & Atmospheric Sensitivity
-    # 'p' is an empirical parameter adjusting the soil moisture stress threshold 
+    # 'stress_onset_weight' is an empirical parameter adjusting the soil moisture stress threshold 
     # based on atmospheric demand (PET) and physical vegetation stature. Higher 
     # atmospheric demand shifts the soil moisture threshold for plant stress.
     stress_onset_weight = (1 / (1 + PET)) - (canopy_buffer_sensitivity / (1 + canopy_height_meters))
