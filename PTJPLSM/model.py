@@ -44,6 +44,8 @@ from carlson_leaf_area_index import carlson_leaf_area_index
 from sun_angles import calculate_daylight
 from verma_net_radiation import verma_net_radiation, daylight_Rn_integration_verma
 from daylight_evapotranspiration import daylight_ET_from_instantaneous_LE, daylight_ET_from_daylight_LE
+from priestley_taylor import epsilon_from_Ta_C
+from priestley_taylor import priestley_taylor as calculate_priestley_taylor
 
 from PTJPL import GAMMA_PA
 from PTJPL import BETA_PA
@@ -52,7 +54,6 @@ from PTJPL import MINIMUM_TOPT
 from PTJPL import FLOOR_TOPT
 
 from PTJPL import SVP_Pa_from_Ta_C
-from PTJPL import delta_Pa_from_Ta_C
 from PTJPL import SAVI_from_NDVI
 from PTJPL import fAPAR_from_SAVI
 from PTJPL import fIPAR_from_NDVI
@@ -441,11 +442,11 @@ def PTJPLSM(
     # --- Partitioning Calculations ---
     # Calculate epsilon if not provided
     if epsilon is None:
-        # If delta in Pascals is not provided, calculate from air temperature in Celcius
-        if delta_Pa is None:
-            delta_Pa = delta_Pa_from_Ta_C(Ta_C=Ta_C)
-
-        epsilon = delta_Pa / (delta_Pa + gamma_Pa)
+        epsilon = epsilon_from_Ta_C(
+            Ta_C=Ta_C,
+            delta_Pa=delta_Pa,
+            gamma_Pa=gamma_Pa
+        )
 
     check_distribution(image=epsilon, variable="epsilon")
 
@@ -473,7 +474,15 @@ def PTJPLSM(
     check_distribution(image=Rn_canopy_Wm2, variable="Rn_canopy_Wm2")
     results["Rn_canopy_Wm2"] = Rn_canopy_Wm2
     # Potential evapotranspiration (PET_Wm2)
-    PET_Wm2 = PT_alpha * epsilon * (Rn_Wm2 - G_Wm2)
+    PET_Wm2 = calculate_priestley_taylor(
+        Rn_Wm2=Rn_Wm2,
+        G_Wm2=G_Wm2,
+        Ta_C=Ta_C,
+        epsilon=epsilon,
+        PT_alpha=PT_alpha,
+        GEOS5FP_connection=GEOS5FP_connection,
+        resampling=resampling
+    )["LE_potential_Wm2"]
     check_distribution(image=PET_Wm2, variable="PET_Wm2")
     results["PET_Wm2"] = PET_Wm2
     
